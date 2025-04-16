@@ -59,6 +59,7 @@
   },
   "devDependencies": {
     "@serverless-stack/resources": "^1.18.4",
+    "@tailwindcss/postcss": "^4.1.4",
     "@types/aws-lambda": "^8.10.147",
     "@types/jsdom": "^21.1.7",
     "@types/mailparser": "^3.4.5",
@@ -69,7 +70,7 @@
     "postcss": "^8",
     "prettier": "3.5.3",
     "prettier-plugin-tailline": "0.3.3",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^4.1.4",
     "typescript": "^5"
   }
 }

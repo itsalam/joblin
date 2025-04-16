@@ -48,7 +48,7 @@ const Header = ({ children }: { children?: ReactNode }) => {
         <HeaderSection
           className={cn(
             "top-0 left-0 z-50", // Layout
-            "w-full opacity-0 translate-y-[-1rem] mb-0", // Sizing, Effects, Transforms, Margin
+            "w-full opacity-0 mb-0", // Sizing, Effects, Transforms, Margin
             "pb-1.5 animate-fade-in border-b [--animation-delay:600ms]", // Etc.
             sticking ? "border-transparent" : ""
           )}

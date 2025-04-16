@@ -32,7 +32,7 @@ const ApplicationTable = () => {
         setApplications(data as GroupRecord[]);
         return data as GroupRecord[];
       });
-  }, []);
+  }, [options]);
 
   const shift = (id: string, direction: "up" | "down") => {
     const index = applications.findIndex((u) => u.id === id);
@@ -97,12 +97,22 @@ const TableRows = ({
 }) => {
   const rankOrdinal = numberToOrdinal(index + 1);
   // const maxRankOrdinal = numberToOrdinal(user.maxRank);
+  const toggleExpand = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    console.log(e.target);
+    // if (target.tagName === "TR" && target === e.currentTarget) {
+    setExoand((prev) => !prev);
+    // }
+  };
+
+  const [expand, setExoand] = useState<boolean>(false);
 
   return (
     <>
       <motion.tr
         layoutId={`row-${application.id}`}
         className={`text-sm ${index % 2 ? "bg-slate-100" : "bg-white"}`}
+        onClick={toggleExpand}
       >
         <td className="pl-4 w-8 text-lg">
           <button
@@ -156,18 +166,22 @@ const TableRows = ({
 
       <motion.tr
         layoutId={`row-${application.id}-details`}
-        className={`w-full h-40 ${index % 2 ? "bg-slate-100" : "bg-white"}`}
+        className={` ${index % 2 ? "bg-slate-100" : "bg-white"}`}
       >
-        <td colSpan={6} className="w-full h-full">
-          <div className="flex flex-col items-start gap-3 p-5 flex-1 overflow-y-scroll">
-            <div className="email-content flex flex-col gap-0.5 text-xs text-zinc-600 dark:text-white w-full">
-              <TimelineBreadCrumbs
-                expand={true}
-                applicationData={application}
-                editMode={false}
-              />
-            </div>
-          </div>
+        <td colSpan={6}>
+          <motion.div
+            initial={{ maxHeight: 0 }}
+            animate={{ maxHeight: expand ? 160 : 0 }}
+            exit={{ maxHeight: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex overflow-hidden flex-col gap-0.5 text-xs text-zinc-600 dark:text-white w-full"
+          >
+            <TimelineBreadCrumbs
+              expand={expand}
+              applicationData={application}
+              editMode={false}
+            />
+          </motion.div>
         </td>
       </motion.tr>
     </>
@@ -189,47 +203,3 @@ const numberToOrdinal = (n: number) => {
 
   return n + ord;
 };
-
-const userData = [
-  {
-    id: 1,
-    name: "Andrea Thompson",
-    contact: "andythompson@example.com",
-    photoURL: "/imgs/head-shots/1.jpg",
-    maxRank: 112,
-    status: "online",
-  },
-  {
-    id: 2,
-    name: "Thomas Smith",
-    contact: "tsmith@example.com",
-    photoURL: "/imgs/head-shots/5.jpg",
-    maxRank: 41,
-    status: "online",
-  },
-  {
-    id: 3,
-    name: "John Anderson",
-    contact: "john.a@example.com",
-    photoURL: "/imgs/head-shots/2.jpg",
-    maxRank: 9,
-    status: "offline",
-  },
-
-  {
-    id: 4,
-    name: "Craig Peterson",
-    contact: "craigpeterson@example.com",
-    photoURL: "/imgs/head-shots/6.jpg",
-    maxRank: 1,
-    status: "online",
-  },
-  {
-    id: 5,
-    name: "Jen Horowitz",
-    contact: "j.horowitz@example.com",
-    photoURL: "/imgs/head-shots/3.jpg",
-    maxRank: 9999,
-    status: "pending",
-  },
-];

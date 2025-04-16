@@ -40,14 +40,14 @@ export default function MenuBar() {
   const { options, setOptions } = useDashboard();
 
   return (
-    <div className="border-zinc-200 dark:border-zinc-800 w-full overflow-hidden h-full flex items-center top-0 right-0 bg-gradient-to-b from-white via-white to-transparent dark:from-zinc-900 dark:to-transparent">
+    <div className="border-zinc-200 dark:border-zinc-800 w-full overflow-hidden h-full flex items-center top-0 right-0 bg-linear-to-b from-white via-white to-transparent dark:from-zinc-900 dark:to-transparent">
       <div className="relative pb-0 flex flex-1 h-full">
         <Search
           size={24}
           className="absolute left-2 top-[0.875rem] h-4 w-4 text-muted-foreground"
         />
         <Input
-          className="text-md bg-card m-1 ml-0 flex h-9 flex-1 px-3 py-1 text-base shadow-none transition-colors border-0 focus:border-none file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 focus:ring-0 md:text-sm pl-7 focus-visible:ring-0"
+          className="text-md bg-card m-1 ml-0 flex h-9 flex-1 px-3 py-1 text-base shadow-none transition-colors border-0 focus:border-none file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 focus:ring-0 md:text-sm pl-7 focus-visible:ring-0"
           placeholder="Search"
           //   onChange={(e) => setFields({ name: e.target.value })}
         />
@@ -106,7 +106,7 @@ function DateMenu({
             <ChevronDown />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="z-[80] w-40 border-zinc-200 dark:border-zinc-800">
+        <DropdownMenuContent className="z-80 w-40 border-zinc-200 dark:border-zinc-800">
           <DropdownMenuRadioGroup
             value={dateKey}
             onValueChange={(key) => setDateKey?.(key as DateRange)}

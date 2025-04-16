@@ -93,7 +93,7 @@ function CategorizedEmailChart({
     return (
       <div
         className={cn(
-          "flex items-center gap-3 bg-gradient-to-b from-white via-white to-transparent dark:from-zinc-900 dark:to-transparent p-4 rounded-lg",
+          "flex items-center gap-3 bg-linear-to-b from-white via-white to-transparent dark:from-zinc-900 dark:to-transparent p-4 rounded-lg",
           isFetching && "opacity-25"
         )}
       >
@@ -123,7 +123,7 @@ function CategorizedEmailChart({
         "border-zinc-200 p-6 dark:border-zinc-800 w-full overflow-hidden"
       }
     >
-      <div className="flex items-center gap-3 bg-gradient-to-b from-white via-white to-transparent dark:from-zinc-900 dark:to-transparent ">
+      <div className="flex items-center gap-3 bg-linear-to-b from-white via-white to-transparent dark:from-zinc-900 dark:to-transparent ">
         {options.displayedStatistics.map((statisticKey) => {
           const statistic = StatisticMap[statisticKey];
           return <StatisticCard key={statisticKey} statistic={statistic} />;

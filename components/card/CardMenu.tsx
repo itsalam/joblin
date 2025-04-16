@@ -40,7 +40,7 @@ function FilterMenu(props: { transparent?: boolean; vertical?: boolean }) {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="z-[80] w-40 border-zinc-200 dark:border-zinc-800">
+      <DropdownMenuContent className="z-80 w-40 border-zinc-200 dark:border-zinc-800">
         <DropdownMenuGroup>
           <DropdownMenuItem>
             <p className="flex cursor-pointer items-center gap-2 text-zinc-800 hover:font-medium hover:text-zinc-950 dark:text-zinc-200 dark:hover:text-white">
