@@ -33,6 +33,17 @@ export const ApplicationStatusBackground: Partial<
   [ApplicationStatus.Rejected]: "bg-gray-100", // Red for rejection
 };
 
+export const ApplicationStatusColor: Partial<
+  Record<ApplicationStatus, string>
+> = {
+  // [ApplicationStatus.Posted]: "var(--color-gray-500 bg-gray-100", // Neutral for job postings
+  [ApplicationStatus.ApplicationAcknowledged]: "var(--color-blue-600)", // Blue for acknowledgment
+  [ApplicationStatus.InterviewRequested]: "var(--color-yellow-600)", // Yellow for pending interview
+  [ApplicationStatus.Complete]: "var(--color-green-600)", // Green for completed applications
+  [ApplicationStatus.OfferExtended]: "var(--color-purple-600)", // Purple for offers (highlighting excitement)
+  [ApplicationStatus.Rejected]: "var(--color-gray-500)", // Red for rejection
+};
+
 export const ApplicationStatusStyle: Record<ApplicationStatus, string> =
   Object.values(ApplicationStatus).reduce(
     (acc, key) => {

@@ -20,7 +20,7 @@ async function handler(req: Request) {
   const session = await getServerSession(authOptions);
   const username = session?.user?.username!;
 
-  const { emails, chartData } = await getFormattedEmails({
+  const { emails } = await getFormattedEmails({
     dateRangeParam,
     absolute,
   });
@@ -44,15 +44,6 @@ async function handler(req: Request) {
     },
     (rej) => console.log({ rej })
   );
-
-  results = results.map((groupRecord) => {
-    return {
-      ...groupRecord,
-      last_email_subject: emails.find(
-        (email) => email.group_id === groupRecord.id
-      )?.subject,
-    };
-  });
 
   return new Response(JSON.stringify(results), {
     status: 200,

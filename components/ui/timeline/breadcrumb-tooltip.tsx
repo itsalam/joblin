@@ -6,14 +6,14 @@ import { BreadCrumbItemProps } from "./breadcrumb-item";
 
 type BreadCrumbTooltipProps = Pick<
   BreadCrumbItemProps,
-  "external_id" | "status" | "applicationData" | "editMode"
+  "emailData" | "status" | "applicationData" | "editMode"
 >;
 
 export const CIRCLE_DURATION = 0.02;
 export const LINE_DURATION = 0.01;
 
 export const BreadcrumbTooltip: FC<BreadCrumbTooltipProps> = (props) => {
-  const { applicationData, editMode, external_id, status } = props;
+  const { applicationData, editMode, emailData, status } = props;
   const postingUrl = null;
 
   const OpenLink = (props: { title: string; url?: string }) => (
@@ -34,15 +34,15 @@ export const BreadcrumbTooltip: FC<BreadCrumbTooltipProps> = (props) => {
       <>
         {false
           ? "Update URL"
-          : external_id
-            ? "Edit this status"
-            : "Update status"}
+          : emailData
+            ? "Edit this email"
+            : "Add a new email"}
       </>
     );
   };
 
   return (
-    <TooltipContent sideOffset={10} className={cn()}>
+    <TooltipContent side="left" sideOffset={10} className={cn()}>
       {editMode ? (
         <EditTooltip />
       ) : false ? (
@@ -63,7 +63,7 @@ export const BreadcrumbTooltip: FC<BreadCrumbTooltipProps> = (props) => {
             "flex items-center text-sm hover:underline"
           )}
         >
-          Expand
+          View in Email Client
         </p>
       )}
     </TooltipContent>

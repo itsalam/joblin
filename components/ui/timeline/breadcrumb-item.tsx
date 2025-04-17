@@ -1,29 +1,30 @@
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 
-import { cn, timeAgo } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { ApplicationStatus, GroupRecord } from "@/types";
 import { Variants, motion } from "framer-motion";
-import { Ban, Check, PenLine, PlusCircle } from "lucide-react";
-import { ComponentProps, FC } from "react";
+import {
+  Ban,
+  CheckCircle2Icon,
+  CircleEllipsis,
+  CircleFadingPlus,
+} from "lucide-react";
+import { ComponentProps, ComponentPropsWithoutRef, FC } from "react";
 import { BreadcrumbTooltip } from "./breadcrumb-tooltip";
 
 export type BreadCrumbItemProps = {
   applicationData: GroupRecord;
-  external_id?: string;
+  emailData?: CategorizedEmail;
   editMode: boolean;
   isLast?: boolean;
   isLoading: boolean;
   index: number;
-  currStatusIndex: number;
-  status: ApplicationStatus;
-  date?: string;
-  startColor?: string;
-  endColor?: string;
+  status?: ApplicationStatus;
+  stepColor: string;
 };
 
 type MotionCustomProps = {
   index: number;
-  currStatusIndex: number;
   isLine?: boolean;
 };
 
@@ -36,7 +37,7 @@ const draw = {
   }),
 
   hidden: { pathLength: [null, 0], opacity: [null, 0] },
-  visible: ({ index, currStatusIndex, isLine }: MotionCustomProps) => {
+  visible: ({ index, isLine }: MotionCustomProps) => {
     const delay =
       0.1 + index * (0.05 + CIRCLE_DURATION) + (isLine ? CIRCLE_DURATION : 0);
     return {
@@ -56,30 +57,27 @@ const draw = {
 export const BreadCrumbItem: FC<BreadCrumbItemProps> = (props) => {
   const {
     editMode,
+    emailData,
     applicationData,
-    external_id,
     isLast = true,
     isLoading,
     index,
-    currStatusIndex,
     status,
-    date,
-    startColor,
-    endColor,
+    stepColor,
   } = props;
   // const setEditingStatus = useApplicationStore(
   //   (store) => store.setEditingStatus
   // );
-
+  const id = emailData?.id;
+  const date = emailData?.sent_on;
   const crossOrCheck = status === ApplicationStatus.Rejected;
 
-  const EditIcon = motion(
-    currStatusIndex >= index ? PenLine : PlusCircle
-  );
-  const CrumbIcon = crossOrCheck ? motion(Ban) : motion(Check);
-
+  const EditIcon = motion(id ? CircleEllipsis : CircleFadingPlus);
+  const CrumbIcon = crossOrCheck ? motion(Ban) : motion(CheckCircle2Icon);
+  const DisplayIcon = (props: ComponentPropsWithoutRef<typeof EditIcon>) =>
+    editMode ? <EditIcon {...props} /> : !id ? <></> : <CrumbIcon {...props} />;
   const onClick = () => {
-      // setEditingStatus(status);
+    // setEditingStatus(status);
   };
 
   return (
@@ -88,19 +86,16 @@ export const BreadCrumbItem: FC<BreadCrumbItemProps> = (props) => {
         <motion.li
           whileHover={"hover"}
           style={{
-            color: startColor,
+            color: stepColor,
           }}
           onClick={onClick}
           className={cn(
-            "flex relative flex-col flex-1 gap-4 items-center", // Layout, Flexbox & Grid
-            "max-w-24 group", // Sizing, Etc.
+            "flex flex-1 relative gap-4 items-center group py-2.5",
             {
               "cursor-default": !editMode,
-              "cursor-pointer": editMode || external_id,
+              "cursor-pointer": editMode || id,
               "animate-pulse": isLoading,
-              "pointer-events-none":
-                !(external_id) &&
-                !editMode,
+              "pointer-events-none": !id && !editMode,
             }
           )}
           transition={{
@@ -109,25 +104,14 @@ export const BreadCrumbItem: FC<BreadCrumbItemProps> = (props) => {
         >
           <motion.div
             className={cn(
-              "flex relative justify-center items-center w-full"
+              "flex grow-0 justify-center items-center"
             )}
           >
-            {editMode ? (
-              <EditIcon
-                className="absolute z-20 text-white"
-                size={currStatusIndex >= index ? 16 : 20}
-                strokeWidth={2}
-                fill="currentColor"
-                variants={{ hover: { scale: 1.1 }, initial: { scale: 1.0 } }}
-              />
-            ) : index > currStatusIndex ? null : (
-              <CrumbIcon
-                className="absolute z-20 text-white"
-                strokeWidth={3}
-                fill="currentColor"
-                variants={{ hover: { scale: 1.1 } }}
-              />
-            )}
+            <DisplayIcon
+              className="absolute z-20 text-white"
+              size={18}
+              variants={{ hover: { scale: 1.1 }, initial: { scale: 1.0 } }}
+            />
             <motion.svg
               className={cn(
                 "overflow-visible relative z-10 justify-center items-center", // Layout, Flexbox & Grid
@@ -138,26 +122,26 @@ export const BreadCrumbItem: FC<BreadCrumbItemProps> = (props) => {
             >
               <Circle className="text-gray-400" />
               <Circle
-                className={currStatusIndex < index ? "text-gray-400" : ""}
                 pathLength={0}
                 opacity={0}
                 variants={draw}
-                custom={{ index, currStatusIndex }}
-                fill={
-                  editMode || currStatusIndex >= index
-                    ? "currentColor"
-                    : "transparent"
-                }
+                custom={{ index }}
+                fill={editMode || id ? "currentColor" : "transparent"}
               />
             </motion.svg>
-            {isLast && (
+            {!isLast && (
               <motion.svg
                 className={cn(
-                  "overflow-visible absolute z-0 justify-center items-center", // Layout, Flexbox & Grid
-                  "w-full h-6 translate-x-1/2 pointer-events-none", // Sizing, Transforms, Interactivity
-                  "pr-[4px] pl-[12px]" // Etc.
+                  "overflow-visible absolute top-full z-0", // Layout
+                  "justify-center items-center w-full h-6", // Flexbox & Grid, Sizing
+                  "translate-x-1/2 pointer-events-none", // Transforms, Interactivity
+                  "pr-[0px] pl-[0px]" // Etc.
                 )}
-                height={24}
+                style={{
+                  width: "20px",
+                  height: "calc(100% - 22px)",
+                  top: "calc(50% + 12px)",
+                }}
                 preserveAspectRatio="none"
                 viewBox="0 0 24 24"
                 xmlns="http://www.w3.org/2000/svg"
@@ -168,50 +152,68 @@ export const BreadCrumbItem: FC<BreadCrumbItemProps> = (props) => {
                   )}
                 />
                 <Line
-                  stroke={`url(#${stopColorsToGradientId(startColor, endColor)})`}
+                  stroke={`url(#gradient-${applicationData.id}-${index})`}
                   strokeOpacity={1}
                   fillOpacity={1}
                   opacity={0}
                   pathLength={0}
                   variants={draw}
-                  custom={{ index, currStatusIndex, isLine: true }}
+                  custom={{ index, isLine: true }}
                 />
               </motion.svg>
             )}
           </motion.div>
-          <motion.div
-            className="flex flex-col items-center justify-center"
-            variants={{ hover: { scale: 1.05 } }}
-          >
-            <p>
-              {underScoreToFull(status)
-                .split(" ")
-                .map((word) => (
-                  <span
-                    className={cn(
-                      "text-sm text-black group-hover:underline break-all", // Typography
-                      {
-                        "opacity-80 text-gray-400 group-hover:no-underline":
-                          index > currStatusIndex,
-                      }
-                    )}
-                    key={word}
-                  >
-                    {word}
-                  </span>
-                ))}
-            </p>
-            {date ? (
-              <span className="opcaity-80 text-xs text-gray-400">
-                {timeAgo(date)}
-              </span>
-            ) : null}
+
+          <motion.div className="flex w-32 gap-4">
+            <motion.div
+              className="flex flex-col justify-center"
+              variants={{ hover: { scale: 1.05 } }}
+            >
+              <p
+                className={cn(
+                  "text-sm text-black break-all",
+                  {
+                    "opacity-80 text-gray-500 ": !id,
+                    "group-hover:opacity-100 group-hover:text-black": editMode,
+                  }
+                )}
+              >
+                {!status ? "New Email" : underScoreToFull(status)}
+              </p>
+              {date ? (
+                <span className="opcaity-80 text-xs text-gray-400">
+                  {new Date(date).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "2-digit",
+                    year: "2-digit",
+                  })}
+                </span>
+              ) : null}
+            </motion.div>
+            {(editMode || emailData) && (
+              <motion.div
+                className="h-0.5 flex-1 my-auto bg-gray-200"
+                {...(editMode && !emailData
+                  ? { variants: { hover: { flex: 1 } }, initial: { flex: 0 } }
+                  : {})}
+              />
+            )}
           </motion.div>
+          {emailData && (
+            <div>
+              <p className="text-sm text-black line-clamp-1 w-sm">
+                {emailData?.subject}
+              </p>
+              <p className="text-xs text-gray-400 line-clamp-1 w-md">
+                {emailData?.preview}
+              </p>
+            </div>
+          )}
         </motion.li>
       </TooltipTrigger>
       <BreadcrumbTooltip
         applicationData={applicationData}
-        external_id={external_id}
+        emailData={emailData}
         status={status}
         editMode={editMode}
       />
@@ -237,34 +239,14 @@ const Line: FC<ComponentProps<typeof motion.line>> = (props) => {
   return (
     <motion.line
       x1="0"
-      y1="12"
-      x2="24"
-      y2="12"
+      y1="0"
+      x2="0"
+      y2="28"
       stroke="currentColor"
       strokeWidth="4"
       {...props}
     />
   );
-};
-
-const stopColorsToGradientId = (startColor?: string, endColor?: string) => {
-  if (startColor === "var(--color-green-400)") {
-    return "pastOngoing";
-  }
-
-  if (endColor === "var(--color-red-400)") {
-    return "toReject";
-  }
-
-  if (endColor === "var(--color-green-400)") {
-    return "toOngoing";
-  }
-
-  if (endColor === "var(--color-lime-400)") {
-    return "default";
-  }
-
-  return null;
 };
 
 const underScoreToFull = (str: string) => {

@@ -2,6 +2,14 @@ import { useDashboard } from "@/app/(providers)/DashboardProvider";
 import { ApplicationBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { EditInput } from "@/components/ui/edit-input";
 import TimelineBreadCrumbs from "@/components/ui/timeline";
 import { timeAgo } from "@/lib/utils";
 import { GroupRecord } from "@/types";
@@ -62,7 +70,7 @@ const ApplicationTable = () => {
       <table className="w-full">
         <thead>
           <tr className="border-b-[1px] border-slate-200 text-slate-400 text-xs uppercase h-9">
-            <th className="pl-4 w-8"></th>
+            <th className="pl-3 w-8"></th>
             <th className="pl-3 text-start font-medium">Company</th>
             <th className="text-start font-medium">Status</th>
             <th className="text-start font-medium">Last Subject</th>
@@ -95,17 +103,22 @@ const TableRows = ({
   index: number;
   shift: (id: string, direction: "up" | "down") => void;
 }) => {
-  const rankOrdinal = numberToOrdinal(index + 1);
-  // const maxRankOrdinal = numberToOrdinal(user.maxRank);
   const toggleExpand = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    console.log(e.target);
-    // if (target.tagName === "TR" && target === e.currentTarget) {
-    setExoand((prev) => !prev);
-    // }
+    if (
+      target.closest(
+        "button, a, input, textarea, select, [data-no-drawer], [role=menuitem]"
+      ) // opt-out selector
+    ) {
+      return;
+    } else {
+      setExpand((prev) => !prev);
+      setEdit(false);
+    }
   };
 
-  const [expand, setExoand] = useState<boolean>(false);
+  const [expand, setExpand] = useState<boolean>(false);
+  const [edit, setEdit] = useState(false);
 
   return (
     <>
@@ -114,75 +127,120 @@ const TableRows = ({
         className={`text-sm ${index % 2 ? "bg-slate-100" : "bg-white"}`}
         onClick={toggleExpand}
       >
-        <td className="pl-4 w-8 text-lg">
-          <button
-            className="hover:text-violet-600"
-            onClick={() => shift(application.id, "up")}
-          >
-            <ChevronUp />
-          </button>
-          <button
-            className="hover:text-violet-600"
-            onClick={() => shift(application.id, "down")}
-          >
-            <ChevronDown />
-          </button>
+        <td className="px-3 w-8 text-lg">
+          <div className="flex flex-col items-center justify-center gap-2">
+            <button
+              className="hover:text-violet-600"
+              onClick={() => shift(application.id, "up")}
+            >
+              <ChevronUp />
+            </button>
+            <button
+              className="hover:text-violet-600"
+              onClick={() => shift(application.id, "down")}
+            >
+              <ChevronDown />
+            </button>
+          </div>
         </td>
 
-        <td className="py-5 px-1 flex items-center gap-3 overflow-hidden">
-          <LogoAvatar company={application.company_title} size={44} />
+        <td className="py-5 flex items-center gap-3 relative">
+          <LogoAvatar company={application.company_title} size={48} />
           <div>
             <span className="block font-medium">
               {application.company_title}
             </span>
-            <span className="block text-xs text-slate-500">
-              {application.job_title}
-            </span>
+            <EditInput
+              key={application.id}
+              className="text-xs text-slate-500 w-2xs"
+              edit={edit}
+              value={application.job_title}
+            />
           </div>
         </td>
 
-        <td className="py-5">
+        <td className="py-5 pr-3">
           {application.last_status && (
             <ApplicationBadge status={application.last_status} />
           )}
         </td>
 
         <td className="py-5 text-ellipsis">
-          <span className="block font-medium">
-            {application.last_email_subject}
-          </span>
-          <span className="block text-xs text-slate-500">
+          <p className="block font-medium">{application.last_email_subject}</p>
+          <p className="block text-xs text-slate-500">
             {application.last_updated
               ? timeAgo(application.last_updated)
               : null}
-          </span>
+          </p>
         </td>
-        <td className="py-5">
-          <Button variant="ghost">
-            <Ellipsis />
-          </Button>
+        <td className="py-5 px-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size={"icon"}
+                className="hover:bg-slate-200 rounded-full aspect-square"
+              >
+                <Ellipsis />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="z-80 w-40 border-zinc-200 dark:border-zinc-800">
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    setEdit(!edit);
+                    setExpand(true);
+                  }}
+                >
+                  <p className="flex cursor-pointer items-center gap-2 text-zinc-800 hover:font-medium hover:text-zinc-950 dark:text-zinc-200 dark:hover:text-white">
+                    <span>{/* <User /> */}</span>
+                    Edit
+                  </p>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <p className="mt-2 flex cursor-pointer items-center gap-2 pt-1 text-zinc-950 hover:font-medium hover:text-zinc-950 dark:text-zinc-200 dark:hover:text-white">
+                    <span>{/* <Store /> */}</span>
+                    Delete
+                  </p>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <p className="mt-2 flex cursor-pointer items-center gap-2 pt-1 text-zinc-950 hover:font-medium hover:text-zinc-950 dark:text-zinc-200 dark:hover:text-white">
+                    <span>{/* <Lightbulb /> */}</span>
+                    Pin
+                  </p>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <p className="mt-2 flex cursor-pointer items-center gap-2 pt-1 text-zinc-950 hover:font-medium hover:text-zinc-950 dark:text-zinc-200 dark:hover:text-white">
+                    <span>{/* <Settings /> */}</span>
+                    Panel 4
+                  </p>
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </td>
       </motion.tr>
 
       <motion.tr
         layoutId={`row-${application.id}-details`}
+        layout="preserve-aspect"
         className={` ${index % 2 ? "bg-slate-100" : "bg-white"}`}
       >
-        <td colSpan={6}>
+        <motion.td colSpan={6}>
           <motion.div
             initial={{ maxHeight: 0 }}
-            animate={{ maxHeight: expand ? 160 : 0 }}
+            animate={{ maxHeight: expand ? 200 : 0 }}
             exit={{ maxHeight: 0 }}
             transition={{ duration: 0.3 }}
-            className="flex overflow-hidden flex-col gap-0.5 text-xs text-zinc-600 dark:text-white w-full"
+            className="flex overflow-y-auto overflow-x-hidden gap-0.5 text-xs text-zinc-600 dark:text-white w-full px-15"
           >
             <TimelineBreadCrumbs
               expand={expand}
               applicationData={application}
-              editMode={false}
+              editMode={edit}
             />
           </motion.div>
-        </td>
+        </motion.td>
       </motion.tr>
     </>
   );

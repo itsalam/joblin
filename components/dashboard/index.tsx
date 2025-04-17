@@ -34,6 +34,9 @@ export default function Main(props: Props) {
       dateRange: options.dateKey,
       ...(options.absolute ? { absolute: "1" } : {}),
     });
+    // options.displayedStatistics.forEach((stat, i) => {
+    //   searchParams.append(`stat[${i}]`, stat);
+    // });
     const url = `${baseURL}?${searchParams.toString()}`;
     fetch(url)
       .then((x) => {
