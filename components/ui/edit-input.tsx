@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
-import { AnimatePresence, motion } from "framer-motion";
+import { Root } from "@radix-ui/react-slot";
+import { AnimatePresence, motion, MotionProps } from "framer-motion";
 import { LoaderCircle, PenLine, X } from "lucide-react";
 import {
   ComponentProps,
@@ -9,7 +10,7 @@ import {
   MouseEventHandler,
   useEffect,
   useRef,
-  useState,
+  useState
 } from "react";
 
 type TextEvent =
@@ -28,6 +29,34 @@ export type EditInputProps = {
   validateValue?: (val?: string) => boolean;
 } & ComponentProps<typeof Input>;
 
+const setInputValue = (input: HTMLElement, value?: string) => {
+  const isInputElement = (element: HTMLElement): element is HTMLInputElement => {
+    return element.tagName.toLowerCase() === "input";
+  };
+
+  if (isInputElement(input)) {
+    input.value = value ?? "";
+  } else {
+    input.innerText = value ?? "";
+  }
+};
+
+function focusToEnd(el: HTMLElement) {
+  el.focus();
+  if(el.tagName.toLowerCase() === "input") {
+    return;
+  }
+
+  const range = document.createRange();
+  const selection = window.getSelection();
+
+  range.selectNodeContents(el);
+  range.collapse(false); // Collapse to the end
+
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
 export const EditInput = (props: EditInputProps) => {
   const {
     className,
@@ -38,7 +67,8 @@ export const EditInput = (props: EditInputProps) => {
     placeHolder,
     onFetch,
     onClick,
-    validateValue = () => true,
+    validateValue = (val:string) => !!val,
+    children,
     ...inputProps
   } = props;
   const inputRef = useRef<typeof motion.input>(null);
@@ -47,10 +77,13 @@ export const EditInput = (props: EditInputProps) => {
   const [valid, setValid] = useState<boolean>();
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
+
+
   const updateInput = (input: HTMLInputElement) => () => {
-    const placeholderText = input?.getAttribute("placeholder") ?? "";
+    const placeholderText = input?.getAttribute("placeholder");
     const valueText = input.value;
     const extraPadding = 3;
+    if (placeholderText) {
     // Create a temporary span element to measure the placeholder text width
     const tempSpan = document.createElement("span");
     tempSpan.style.visibility = "hidden";
@@ -59,25 +92,27 @@ export const EditInput = (props: EditInputProps) => {
     tempSpan.style.fontFamily = window.getComputedStyle(input).fontFamily;
 
     tempSpan.innerText =
-      placeholderText.length > valueText.length ? placeholderText : valueText;
+      placeholderText.length > (valueText?.length ?? 0) ? placeholderText : valueText;
 
     // Append the span to the body to get its width
     document.body.appendChild(tempSpan);
     const width = tempSpan.offsetWidth + extraPadding;
 
     // Remove the temporary span element
-    document.body.removeChild(tempSpan);
+    // document.body.removeChild(tempSpan);
 
     // Set the input width
     input.style.flexBasis = `${width}px`;
     input.style.width = `${width}px`;
+    }
+
   };
 
   useEffect(() => {
     const input = inputRef.current as unknown as HTMLInputElement;
     const widthUpdater = updateInput(input);
     if (value && input) {
-      input.value = value;
+      setInputValue(input, value);
     }
 
     if (input) {
@@ -89,29 +124,55 @@ export const EditInput = (props: EditInputProps) => {
 
   const focusInput: MouseEventHandler = (e) => {
     e.stopPropagation();
+    console.log("focusInput", inputRef.current);
     if (inputRef.current) {
-      (inputRef.current as unknown as HTMLInputElement).focus();
+      focusToEnd(inputRef.current as unknown as HTMLInputElement);
     }
   };
 
-  const onKeyEvent = (event: TextEvent) => {
-    const input = event.target as HTMLInputElement;
-    if (input.validity.valid && validateValue(input.value)) {
+  const isValid = (target: HTMLInputElement) => {
+    const value = target?.value ?? (target as HTMLElement).innerText;
+    return validateValue(value) && (!!target.validity === !!target.validity?.valid);
+  }
+    
+
+  const onBlurEvent = (event: Partial<Pick<React.FocusEvent<Element>, "target">>) => {
+    const target = event.target as HTMLInputElement;
+    if (
+      prevValue &&
+      !isValid(target)
+    ) {
+      setInputValue(target, prevValue);
+    } else if (target.value !== prevValue) {
+      setIsEdited(true);
+    }
+    updateInput(target)();
+    setValid(undefined);
+  }
+
+  const onKeyEvent = (event: Partial<Pick<React.KeyboardEvent<Element>, "key" | "target">>) => {
+    const target = event.target as HTMLInputElement;
+    const isValidTarget = isValid(target);
+    if (isValidTarget) {
       setValid(true);
     } else {
       setValid(false);
     }
+    console.log(isValidTarget)
     if ("key" in event) {
       if (event?.key === "Enter") {
-        if (input.validity.valid && validateValue(input.value)) {
-          setValid(false);
+        if (isValidTarget) {
+          setValid(undefined);
+          
+        } else {
+          setPrevValue(value ?? placeHolder);
+          setInputValue(target, value ?? placeHolder);
         }
-        input.blur();
+        target?.blur();
       }
-
       if (event?.key === "Escape") {
-        input.value = prevValue ?? "";
-        input.blur();
+        setInputValue(target, prevValue??"");
+        target?.blur();
       }
     }
   };
@@ -119,7 +180,7 @@ export const EditInput = (props: EditInputProps) => {
   const handleMouseDown = (e: MouseEvent) => {
     if (document.activeElement === inputRef.current) {
       if (inputRef.current) {
-        (inputRef.current as unknown as HTMLInputElement).focus();
+        focusToEnd(inputRef.current as unknown as HTMLInputElement);
       }
       return;
     }
@@ -127,15 +188,16 @@ export const EditInput = (props: EditInputProps) => {
   };
 
   const handleSubmit = (e: FormEvent<HTMLInputElement>) => {
-    setIsLoading(true);
+    onFetch && setIsLoading(true);
     onFetch?.(e).then(() => {
       setIsLoading(false);
-    });
+    })
   };
 
   return (
     <motion.span
       key="editInput"
+      role="input"
       className={cn(
         "flex relative items-center w-fit h-fit placeholder-gray-400"
       )}
@@ -145,13 +207,13 @@ export const EditInput = (props: EditInputProps) => {
         ref={inputRef}
         containerProps={{
           className: cn(
-            "h-6 flex-initial rounded-sm border-none flex-1 w-auto",
+            "flex-initial rounded-sm border-none flex-1 w-auto",
             "p-0 overflow-hidden",
             containerClassName,
             {
               underline: valid !== undefined,
               "decoration-emerald-400": valid,
-              "decoration-red-400": !valid,
+              "decoration-red-400": valid === false,
             }
           ),
         }}
@@ -161,19 +223,11 @@ export const EditInput = (props: EditInputProps) => {
         )}
         type="text"
         placeholder={value ?? placeHolder}
-        onBlur={(e) => {
-          if (
-            prevValue &&
-            !(e.target.validity.valid && validateValue(e.target.value))
-          ) {
-            e.target.value = prevValue;
-          } else if (e.target.value !== prevValue) {
-            setIsEdited(true);
-          }
-          updateInput(e.target)();
-          setValid(undefined);
+        onBlur={onBlurEvent}
+        onFocus={(e) => {
+          setPrevValue((e.target as HTMLInputElement)?.value ?? (e.target as HTMLInputElement)?.innerText)
         }}
-        onFocus={(e) => setPrevValue(e.target.value)}
+        edit={edit}
         onKeyDown={onKeyEvent}
         onPaste={onKeyEvent}
         onSubmit={handleSubmit}
@@ -182,6 +236,8 @@ export const EditInput = (props: EditInputProps) => {
           onClick?.(e);
         }}
         readOnly={!edit}
+        children={children}
+        asChild={!!children}
         {...inputProps}
       />
       {isEdited ? <span className="text-blue-400">*</span> : null}
@@ -234,19 +290,24 @@ export interface InputProps
 
 export const Input = forwardRef<
   typeof motion.input,
+  React.ComponentPropsWithRef<typeof Root> &
   React.ComponentPropsWithRef<typeof motion.input> & {
+    asChild?: boolean;
     disableFocus?: boolean;
     icon?: React.ReactNode;
-    containerProps?: React.ComponentPropsWithRef<typeof motion.input>;
-    children?: React.ReactNode;
+    containerProps?: React.ComponentPropsWithRef<typeof motion.div>;
+    initial?: MotionProps["initial"];
+    variants?: MotionProps["variants"];
+    transition?: MotionProps["transition"];
+    edit?: boolean;
   }
 >((
   {
-    children,
+    asChild,
+    edit,
     disableFocus,
     containerProps,
     className,
-    type,
     icon,
     initial,
     variants,
@@ -261,7 +322,6 @@ export const Input = forwardRef<
 ) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [input, setInput] = useState<string>();
-  const [focus, setFocus] = useState<boolean>(false);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
@@ -271,12 +331,14 @@ export const Input = forwardRef<
     onKeyDown?.(event);
   };
 
+  const Comp = asChild? Root : motion.input;
+
   return (
     <motion.div
       whileHover="hover"
       {...containerProps}
       className={cn(
-        "flex items-center h-10 bg-transparent file:bg-transparent", // Layout, Flexbox & Grid, Sizing, Backgrounds
+        "flex items-center bg-transparent file:bg-transparent", // Layout, Flexbox & Grid, Sizing, Backgrounds
         "rounded-full border-1 disabled:opacity-50 transition-all", // Borders, Effects, Transitions & Animation
         "group border-input py-2 px-3 placeholder:text-muted-foreground", // Etc.
         "ring-offset-background",
@@ -296,49 +358,53 @@ export const Input = forwardRef<
           "flex flex-1 items-center"
         )}
       >
-        {children}
-        <motion.input
+        <Comp
           className={cn(
             "w-full bg-inherit focus:outline-none pl-1",
             className
           )}
-          type={type}
-          ref={(node) => {
+          ref={(node: HTMLInputElement) => {
             inputRef.current = node;
             if (typeof ref === "function") {
               ref(node as any);
             } else if (ref) {
-              (ref as React.MutableRefObject<HTMLInputElement | null>).current =
+              (ref as React.RefObject<HTMLInputElement | null>).current =
                 node;
             }
           }}
-          onInputCapture={(e) => {
-            setInput((e.target as HTMLInputElement).value);
+          onInput={(e) => {
+            const target = e.target as HTMLInputElement;
+            setInput(target.value ?? target.innerText);
           }}
           onFocus={(e) => {
             onFocus?.(e);
-            setFocus(true);
           }}
           onBlur={(e) => {
             onBlur?.(e);
-            setFocus(false);
           }}
           onKeyDown={handleKeyDown}
           {...props}
         />
-        {focus && input?.length ? (
-          <X
-            className="cursor-pointer transition-all"
-            size={12}
-            onClick={() => {
-              if (inputRef.current) {
-                inputRef.current.value = "";
-                setInput("");
-                const event = new Event("input", { bubbles: true });
-                inputRef.current.dispatchEvent(event);
-              }
-            }}
+        {edit && input?.length ? (
+          <button
+          onClick={() => {
+            if (inputRef.current) {
+              setInputValue(
+                inputRef.current,
+                ""
+              );
+              setInput("");
+              focusToEnd(inputRef.current);
+              const event = new Event("input", { bubbles: true });
+              inputRef.current.dispatchEvent(event);
+            }
+          }}
+          >
+            <X
+            className="cursor-pointer"
+            size={20}
           />
+            </button>
         ) : null}
       </motion.div>
     </motion.div>
@@ -364,7 +430,6 @@ export const EditButton = forwardRef<HTMLButtonElement, EditButtonProps>((
         "flex relative justify-center items-center",
         className
       )}
-      onAnimationStart={(def) => console.log(def)}
       layout="position"
       key="editIcon"
       variants={{

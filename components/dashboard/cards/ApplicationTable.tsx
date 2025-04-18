@@ -71,7 +71,7 @@ const ApplicationTable = () => {
         <thead>
           <tr className="border-b-[1px] border-slate-200 text-slate-400 text-xs uppercase h-9">
             <th className="pl-3 w-8"></th>
-            <th className="pl-3 text-start font-medium">Company</th>
+            <th className="pl-3 text-start font-medium w-sm">Company</th>
             <th className="text-start font-medium">Status</th>
             <th className="text-start font-medium">Last Subject</th>
           </tr>
@@ -107,11 +107,12 @@ const TableRows = ({
     const target = e.target as HTMLElement;
     if (
       target.closest(
-        "button, a, input, textarea, select, [data-no-drawer], [role=menuitem]"
+        "button, a, input, textarea, select, [data-no-drawer], [role=menuitem], [role=menu], [role=button], [role=tab], [role=treeitem], [role=option], [role=input]"
       ) // opt-out selector
     ) {
       return;
     } else {
+      console.log(target);
       setExpand((prev) => !prev);
       setEdit(false);
     }
@@ -144,18 +145,32 @@ const TableRows = ({
           </div>
         </td>
 
-        <td className="py-5 flex items-center gap-3 relative">
-          <LogoAvatar company={application.company_title} size={48} />
+        <td className="flex items-center gap-3 relative shrink w-min">
+          <div className="py-5 ">
+            <LogoAvatar company={application.company_title} size={48} />
+          </div>
           <div>
-            <span className="block font-medium">
-              {application.company_title}
-            </span>
             <EditInput
-              key={application.id}
-              className="text-xs text-slate-500 w-2xs"
+              key={`title-${application.id}`}
+              className="block font-medium"
+              edit={edit}
+              value={application.company_title}
+            />
+            <EditInput
+              key={`job-${application.id}`}
+              className="text-xs text-slate-500 max-w-2xs"
               edit={edit}
               value={application.job_title}
-            />
+            >
+              <div
+                {...{
+                  contentEditable: edit,
+                  suppressContentEditableWarning: true,
+                }}
+              >
+                {application.job_title}
+              </div>
+            </EditInput>
           </div>
         </td>
 

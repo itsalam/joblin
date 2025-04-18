@@ -164,7 +164,7 @@ export const BreadCrumbItem: FC<BreadCrumbItemProps> = (props) => {
             )}
           </motion.div>
 
-          <motion.div className="flex w-32 gap-4">
+          <motion.div className="flex w-24 gap-4">
             <motion.div
               className="flex flex-col justify-center"
               variants={{ hover: { scale: 1.05 } }}
