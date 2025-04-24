@@ -23,7 +23,7 @@ function FilterMenu(props: { transparent?: boolean; vertical?: boolean }) {
       <DropdownMenuTrigger asChild>
         <Button
           onClick={() => setOpen(!open)}
-          className={`h-full flex items-center text-xl hover:cursor-pointer ${
+          className={`h-full flex items-center text-xl hover:cursor-pointer shadow-none ${
             transparent
               ? "bg-transparent text-white hover:bg-transparent active:bg-transparent"
               : vertical

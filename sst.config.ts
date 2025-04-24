@@ -51,6 +51,12 @@ export default $config({
         bucketName: bucket.id,
         bucketDomainName: bucket.bucketDomainName,
       },
+      include: [
+        sst.aws.permission({
+          actions: ["s3:*"],
+          resources: [bucket.arn.apply((arn) => `${arn}/*`)],
+        }),
+      ],
     }));
 
     const emailArchiveBucket = new aws.s3.BucketV2("email-archive-s3", {
@@ -640,7 +646,7 @@ export default $config({
       { ruleSetName: ruleset.ruleSetName }
     );
 
-    new sst.aws.Nextjs("MyWeb", {
+    const myWeb = new sst.aws.Nextjs("MyWeb", {
       link: [
         userPoolEndpoint,
         webUserPoolClient,
@@ -652,6 +658,17 @@ export default $config({
         logoDevSearchToken,
         logoDevFetchToken,
         opensearch,
+        openApiKey, // remove this
+      ],
+      permissions: [
+        {
+          actions: ["dynamodb:*"],
+          resources: [
+            categorizedEmailsTable.arn.apply(
+              (arn) => `${arn}/index/userEmails`
+            ),
+          ],
+        },
       ],
     });
     // queue.subscribe()

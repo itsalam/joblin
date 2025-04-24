@@ -2,15 +2,13 @@
 
 import {
   ApplicationData,
-  StatisticKey,
-  Statistics,
   useDashboard,
 } from "@/app/(providers)/DashboardProvider";
 import LineChart from "@/components/charts/EmailChart";
 import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { ApplicationStatus } from "@/types";
+import { ApplicationStatus, StatisticKey, Statistics } from "@/types";
 import { LucideIcon, Mail } from "lucide-react";
 import { useEffect, useRef } from "react";
 
@@ -81,10 +79,10 @@ function CategorizedEmailChart({
   chartData: ApplicationData;
   isFetching: boolean;
 }) {
-  const { options } = useDashboard();
+  const { params: options } = useDashboard();
   const hasFetched = useRef(false);
 
-  useEffect(() => { 
+  useEffect(() => {
     hasFetched.current = hasFetched.current || isFetching;
   }, [isFetching]);
 
@@ -93,8 +91,10 @@ function CategorizedEmailChart({
     return (
       <div
         className={cn(
-          "flex items-center gap-3 bg-linear-to-b from-white via-white to-transparent dark:from-zinc-900 dark:to-transparent p-4 rounded-lg",
-          isFetching && "opacity-25"
+          "flex gap-3 items-center p-4", // Layout, Flexbox & Grid, Spacing
+          "bg-linear-to-b rounded-lg from-white via-white to-transparent", // Backgrounds, Borders, Etc.
+          "dark:from-zinc-900 dark:to-transparent",
+          { "opacity-25": isFetching || !hasFetched.current }
         )}
       >
         <div className="flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 text-4xl dark:border-zinc-800 dark:text-white">
@@ -116,35 +116,34 @@ function CategorizedEmailChart({
     );
   };
 
-
   return (
     <Card
-      className={
-        "border-zinc-200 p-6 dark:border-zinc-800 w-full overflow-hidden"
-      }
+      className={"border-zinc-200 dark:border-zinc-800 w-full overflow-hidden"}
     >
-      <div className="flex items-center gap-3 bg-linear-to-b from-white via-white to-transparent dark:from-zinc-900 dark:to-transparent ">
-        {options.displayedStatistics.map((statisticKey) => {
+      <div className="flex p-5 pb-0 items-center gap-3 bg-linear-to-b from-white via-white to-transparent dark:from-zinc-900 dark:to-transparent ">
+        {options.displayedStatistics?.map((statisticKey) => {
           const statistic = StatisticMap[statisticKey];
           return <StatisticCard key={statisticKey} statistic={statistic} />;
         })}
       </div>
 
-
-      <div className="flex h-[350px] w-full flex-row sm:flex-wrap lg:flex-nowrap 2xl:overflow-hidden border-t-1 border-zinc-200">
-        <div className={cn("h-full w-full", isFetching && "opacity-25")}>
-        
-    <LineChart chartData={chartData} />
-          {!hasFetched.current &&
-          <div className="absolute h-full w-full flex items-center justify-center">
-            <Spinner size="large" className="h-full" />
-          </div>
-          }
+      <div className="flex h-[350px] p-1 pb-5 w-full flex-row sm:flex-wrap lg:flex-nowrap 2xl:overflow-hidden border-t-1 border-zinc-200">
+        <div
+          className={cn(
+            "w-full h-full transition-opacity",
+            { "opacity-25": isFetching || !hasFetched.current }
+          )}
+        >
+          <LineChart chartData={chartData} />
+          {!hasFetched.current && (
+            <div className="absolute h-full w-full flex items-center justify-center">
+              <Spinner size="large" className="h-full" />
+            </div>
+          )}
         </div>
       </div>
     </Card>
   );
 }
-
 
 export default CategorizedEmailChart;

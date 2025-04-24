@@ -22,7 +22,13 @@ export const HeaderSection = ({
   );
 };
 
-const Header = ({ children }: { children?: ReactNode }) => {
+const Header = ({
+  children,
+  className,
+}: {
+  children?: ReactNode;
+  className?: string;
+}) => {
   const [sticking, setSticking] = useState(false);
   useEffect(() => {
     const sentinel = document.querySelector("#header-sentinel");
@@ -43,24 +49,23 @@ const Header = ({ children }: { children?: ReactNode }) => {
   });
   return (
     <>
-      <div id="header-sentinel" className="h-0" />
+      <div id="header-sentinel" className="h-0" key={"sentinal"} />
       <div className="p-1.5 px-3 sticky top-0 z-10" key="header">
         <HeaderSection
           className={cn(
-            "top-0 left-0 z-50", // Layout
-            "w-full opacity-0 mb-0", // Sizing, Effects, Transforms, Margin
-            "pb-1.5 animate-fade-in border-b [--animation-delay:600ms]", // Etc.
+            "top-0 left-0 z-50 w-full opacity-0", // Layout, Sizing, Effects
+            "mb-0 pb-1.5 animate-fade-in border-b [--animation-delay:600ms]", // Margin, Etc.
             sticking ? "border-transparent" : ""
           )}
         >
           <Card
             className={cn(
-              "flex overflow-hidden", // Layout
-              "justify-between items-center container h-12", // Flexbox & Grid, Sizing
-              "transition-all duration-300", // Transitions & Animation
+              "flex justify-between items-center", // Layout, Flexbox & Grid
+              "container h-12 transition-all duration-300", // Sizing, Transitions & Animation
               sticking
                 ? "border-zinc-200 dark:border-zinc-800"
-                : "bg-transparent border-transparent shadow-none"
+                : "bg-transparent border-transparent shadow-none",
+              className
             )}
           >
             {children}

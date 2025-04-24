@@ -28,6 +28,7 @@ export const Sidebar = () => {
       style={{
         width: open ? "225px" : "fit-content",
       }}
+      key="sidebar"
     >
       <TitleSection open={open} />
 

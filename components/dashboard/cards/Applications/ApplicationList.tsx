@@ -1,4 +1,5 @@
 import { useDashboard } from "@/app/(providers)/DashboardProvider";
+import { composeDashboardData } from "@/app/actions/composeDashboard";
 import { ApplicationBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,36 +12,21 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EditInput } from "@/components/ui/edit-input";
 import TimelineBreadCrumbs from "@/components/ui/timeline";
-import { timeAgo } from "@/lib/utils";
+import { cn, timeAgo } from "@/lib/utils";
 import { GroupRecord } from "@/types";
-import { motion } from "framer-motion";
-import { ChevronDown, ChevronUp, Ellipsis } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Check, ChevronDown, ChevronUp, Ellipsis, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { LogoAvatar } from "../LogoAvatar";
+import { LogoAvatar } from "../../LogoAvatar";
 
-const ApplicationTable = () => {
-  const baseURL = "/api/applications";
-  const { options } = useDashboard();
-  const [applications, setApplications] = useState<GroupRecord[]>([]);
+const ApplicationList = () => {
+  const { applications, setApplications, params } = useDashboard();
 
   useEffect(() => {
-    const searchParams = new URLSearchParams({
-      dateRange: options.dateKey,
-      ...(options.absolute ? { absolute: "1" } : {}),
+    composeDashboardData(params, true).then((data) => {
+      setApplications(data.applications || []);
     });
-    options.displayedStatistics.forEach((stat, i) => {
-      searchParams.append(`stat[${i}]`, stat);
-    });
-    const url = `${baseURL}?${searchParams.toString()}`;
-    fetch(url)
-      .then((x) => {
-        return x.json();
-      })
-      .then((data) => {
-        setApplications(data as GroupRecord[]);
-        return data as GroupRecord[];
-      });
-  }, [options]);
+  }, [params]);
 
   const shift = (id: string, direction: "up" | "down") => {
     const index = applications.findIndex((u) => u.id === id);
@@ -158,7 +144,7 @@ const TableRows = ({
             />
             <EditInput
               key={`job-${application.id}`}
-              className="text-xs text-slate-500 max-w-2xs"
+              className="text-xs text-slate-500 max-w-2xs w-max"
               edit={edit}
               value={application.job_title}
             >
@@ -244,16 +230,46 @@ const TableRows = ({
         <motion.td colSpan={6}>
           <motion.div
             initial={{ maxHeight: 0 }}
-            animate={{ maxHeight: expand ? 200 : 0 }}
+            animate={{ maxHeight: expand ? 280 : 0 }}
             exit={{ maxHeight: 0 }}
             transition={{ duration: 0.3 }}
-            className="flex overflow-y-auto overflow-x-hidden gap-0.5 text-xs text-zinc-600 dark:text-white w-full px-15"
+            className="flex overflow-y-scroll overflow-x-hidden gap-0.5 text-xs text-zinc-600 dark:text-white w-full px-15"
+            layout="size"
           >
-            <TimelineBreadCrumbs
-              expand={expand}
-              applicationData={application}
-              editMode={edit}
-            />
+            <div className="flex flex-col flex-1 gap-2.5 pb-5">
+              <TimelineBreadCrumbs
+                expand={expand}
+                applicationData={application}
+                editMode={edit}
+              />
+              <AnimatePresence>
+                {edit && (
+                  <motion.div
+                    layout={"position"}
+                    key={`edit-${application.id}`}
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className={cn(
+                      "flex gap-2 justify-start"
+                    )}
+                  >
+                    <Button variant="outline" size="sm">
+                      Save
+                      <Check />
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setEdit(false)}
+                    >
+                      Cancel Edit
+                      <Undo2 />
+                    </Button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </motion.div>
         </motion.td>
       </motion.tr>
@@ -261,7 +277,7 @@ const TableRows = ({
   );
 };
 
-export default ApplicationTable;
+export default ApplicationList;
 
 const numberToOrdinal = (n: number) => {
   let ord = "th";

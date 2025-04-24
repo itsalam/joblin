@@ -1,14 +1,27 @@
 import { authOptions } from "@/lib/auth";
+import { openSearchClient } from "@/lib/clients";
 import { DateRange, DateRanges } from "@/lib/consts";
-import { ApplicationStatus } from "@/types";
 import {
+  ApplicationStatus,
+  DashboardParams,
+  FilterType,
+  GroupRecord,
+  OpenSearchRecord,
+} from "@/types";
+import {
+  BatchGetItemCommand,
+  BatchGetItemInput,
   DynamoDBClient,
   QueryCommand,
   QueryCommandInput,
 } from "@aws-sdk/client-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
+import { QueryContainer } from "@opensearch-project/opensearch/api/_types/_common.query_dsl.js";
+import { Search_RequestBody } from "@opensearch-project/opensearch/api/index.js";
 import { getServerSession } from "next-auth";
+import { cache } from "react";
 import { Resource } from "sst";
+import { FetchData } from "../(providers)/DashboardProvider";
 
 const dbClient = new DynamoDBClient({ region: "us-east-1" });
 
@@ -81,19 +94,15 @@ export const fetchEmails = async (
   return payload;
 };
 
-export const getFormattedEmails = async ({
-  dateRangeParam,
+export const getFormattedEmails = cache(async ({
+  dateKey = DateRanges.Monthly,
   absolute,
-}: {
-  dateRangeParam?: string;
-  absolute: boolean;
-  omit?: string[];
-}) => {
+  searchTerm,
+  filters,
+}: DashboardParams): Promise<FetchData> => {
   const session = await getServerSession(authOptions);
-  const dateRangeKey =
-    DateRanges[dateRangeParam as keyof typeof DateRanges] ?? DateRanges.Monthly;
 
-  const dates = getIntervalDates(dateRangeKey, absolute);
+  const dates = getIntervalDates(dateKey, absolute);
   const buckets: Record<
     string,
     Partial<Record<ApplicationStatus, number | null>> & { rawDate: Date }
@@ -102,16 +111,30 @@ export const getFormattedEmails = async ({
     .reduce((curr, timestamp) => ({ ...curr, [timestamp]: {} }), {});
 
   const seenStatuses = new Set<ApplicationStatus>();
-  let dateRange: [Date, Date] | undefined = undefined;
-  if (dateRangeParam) {
-    dateRange = [dates[0], dates[dates.length - 1]];
+  let res;
+  try {
+    res = await searchFromOS(session?.user?.username!, {
+      filters: filters ?? [],
+      searchTerm,
+      dateKey,
+      absolute: !!absolute,
+    });
+  } catch (e) {
+    console.error({ e });
   }
-  const emails = await fetchEmails(session?.user?.username!, dateRange);
+
+  const hits = res?.hits?.hits ?? [];
+  const hitItems: CategorizedEmail[] = hits.map((hit) => {
+    return hit._source as CategorizeEmailItem;
+  });
+
+  // const emails = await fetchEmails(session?.user?.username!, dateRange);
+  const emails = hitItems;
   emails.sort((a, b) => {
     return new Date(b.sent_on).getTime() - new Date(a.sent_on).getTime();
   });
   emails.forEach((item) => {
-    const bucketDate = groupByDateRange(dateRangeKey, item, dates); // YYYY-MM-DD
+    const bucketDate = groupByDateRange(dateKey, item, dates); // YYYY-MM-DD
     const bucketKey = bucketDate.toISOString().split("T")[0];
     const status = item.application_status as ApplicationStatus;
     seenStatuses.add(status);
@@ -139,7 +162,89 @@ export const getFormattedEmails = async ({
   }));
 
   return { emails, chartData };
+});
+
+const filterToFieldMap: Record<FilterType, keyof OpenSearchRecord> = {
+  [FilterType.Company]: "company_title",
+  [FilterType.Position]: "job_title",
+  [FilterType.Subject]: "subject",
 };
+
+const searchFromOS = cache(async (
+  username: string,
+  params: DashboardParams,
+  size: number = 500
+) => {
+  const {
+    filters = [],
+    dateKey = DateRanges.Monthly,
+    absolute,
+    searchTerm,
+  } = params;
+
+  const index = `user-${username}`;
+  const client = await openSearchClient();
+  const dates = getIntervalDates(dateKey, absolute);
+  const formattedFilters: QueryContainer[] = filters.map((filter) => ({
+    match: {
+      [filterToFieldMap[filter.category]]: {
+        query: filter.value.trim(),
+        minimum_should_match: "95%",
+      },
+    },
+  }));
+  console.log(dates);
+  const dateFilter: QueryContainer = {
+    range: {
+      sent_on: {
+        gte: dates[0].toISOString(),
+        lte: dates[dates.length - 1].toISOString(),
+      },
+    },
+  };
+
+  const searchTermQuery: QueryContainer | null = searchTerm
+    ? {
+        multi_match: {
+          query: searchTerm,
+          fields: [
+            "text",
+            "subject",
+            "from",
+            "company_title",
+            "job_title",
+            "status",
+          ] as (keyof OpenSearchRecord)[],
+          fuzziness: "AUTO",
+          minimum_should_match: "95%",
+        },
+      }
+    : null;
+
+  const body: Search_RequestBody = {
+    size,
+    track_total_hits: true,
+    _source: {
+      excludes: ["vector_embedding", "text"],
+    },
+    query: {
+      bool: {
+        must: [...formattedFilters, dateFilter, searchTermQuery].filter(
+          Boolean
+        ) as QueryContainer[],
+      },
+    },
+  };
+
+  console.log({ body });
+
+  const searchResp = await client.search({
+    index,
+    body,
+  });
+
+  return searchResp.body;
+});
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -335,4 +440,35 @@ export const groupByDateRange = (
         date.getTime() + intervalLength * MS_PER_DAY > sentOn.getTime()
     ) ?? new Date()
   );
+};
+
+export const getApplicationData = async (params: DashboardParams) => {
+  const dbClient = new DynamoDBClient({ region: "us-east-1" });
+  let results: GroupRecord[] = [];
+
+  const { emails } = await getFormattedEmails(params);
+
+  const groupIds = Array.from(new Set(emails.map((emails) => emails.group_id)));
+  let queryCommand: BatchGetItemInput = {
+    RequestItems: {
+      [Resource["grouped-applications-table"].name]: {
+        Keys: groupIds.map((id) => ({
+          id: { S: id }, // your sort key or unique key
+        })),
+      },
+    },
+  };
+  if (groupIds.length) {
+    await dbClient.send(new BatchGetItemCommand(queryCommand)).then(
+      (res) => {
+        const entries = Object.values(res.Responses ?? {})[0] ?? [];
+        results = entries.map((entry) =>
+          typeof entry === "string"
+            ? entry
+            : (unmarshall(entry) as GroupRecord));
+      },
+      (rej) => console.log({ rej })
+    );
+  }
+  return results;
 };

@@ -1,3 +1,4 @@
+import { DateRange } from "@/lib/consts";
 import { ParsedMail } from "mailparser";
 
 export type OpenAIResult = {
@@ -28,15 +29,8 @@ export enum ApplicationStatus {
   "Proceed" = "PROCEED",
 }
 
-export type OpenSearchRecord = {
-  company_title: string;
-  job_title: string;
-  group_id: string;
+export type OpenSearchRecord = CategorizedEmail & {
   text?: string;
-  subject?: string;
-  date?: Date;
-  from?: string;
-  status: ApplicationStatus;
 };
 
 export type Group<K extends ApplicationStatus, V = CategorizedEmail[]> = {
@@ -67,4 +61,35 @@ export type UserRecord = {
   app_email: string;
   source_emails: string[];
   user_email: string;
+};
+
+export enum FilterType {
+  Subject = "Subject",
+  Company = "Company",
+  Position = "Position",
+}
+
+export type Filter = {
+  category: FilterType;
+  value: string;
+};
+
+export const Statistics = {
+  TOTAL_APPLICATIONS: "Total Applications Sent",
+  TOTAL_RESPOSNES: "Total Responses",
+  TOTAL_INTERVIEWS: "Total Interviews",
+  REJECT_RATE: "Rejection Rate",
+  AVERAGE_RESPONSE_TIME: "Average Response Time",
+  RESPONSE_BY_CATEGORY: "Responses by Category",
+};
+
+export type StatisticKey = keyof typeof Statistics;
+type StatisticValue = (typeof Statistics)[StatisticKey];
+
+export type DashboardParams = {
+  dateKey?: DateRange;
+  absolute?: boolean;
+  searchTerm?: string;
+  filters?: Filter[];
+  displayedStatistics?: StatisticKey[];
 };

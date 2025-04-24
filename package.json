@@ -8,6 +8,7 @@
     "lint": "next lint",
     "start": "next start"
   },
+  "type": "module",
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.749.0",
     "@aws-sdk/client-dynamodb": "^3.751.0",
@@ -35,6 +36,7 @@
     "@tanstack/react-table": "^8.21.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "dompurify": "^3.2.5",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.475.0",
@@ -69,7 +71,7 @@
     "jsdom": "^26.0.0",
     "postcss": "^8",
     "prettier": "3.5.3",
-    "prettier-plugin-tailline": "0.3.4",
+    "prettier-plugin-tailline": "0.3.5",
     "tailwindcss": "^4.1.4",
     "typescript": "^5"
   }

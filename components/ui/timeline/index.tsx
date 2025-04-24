@@ -127,6 +127,7 @@ const TimelineBreadCrumbs = (props: {
       return (
         <LinearGradient
           id={`gradient-${applicationData.id}-${i}`}
+          key={`gradient-${applicationData.id}-${i}`}
           steps={
             [
               getStepColor(email?.id, application_status),
@@ -143,8 +144,9 @@ const TimelineBreadCrumbs = (props: {
 
   return (
     <motion.ol
+      layout="preserve-aspect"
       className={cn(
-        "flex flex-col justify-center w-min pb-5"
+        "flex flex-col justify-center w-min"
       )}
       transition={{
         staggerChildren: LINE_DURATION + CIRCLE_DURATION * 10,

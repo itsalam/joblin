@@ -1,11 +1,24 @@
-import { DateRange, DateRanges } from "@/lib/consts";
-import { ApplicationStatus } from "@/types";
-import React, { createContext, ReactNode, useContext, useState } from "react";
+"use client";
+
+import { setEmailItem } from "@/lib/clientCache";
+import { ApplicationStatus, DashboardParams, GroupRecord } from "@/types";
+import React, {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { composeDashboardData } from "../actions/composeDashboard";
 
 interface DashboardContextValue {
-  // Define the shape of your context value here
-  options: ChartOptions;
-  setOptions: React.Dispatch<React.SetStateAction<ChartOptions>>;
+  isFetching: boolean;
+  applications: GroupRecord[];
+  setApplications: React.Dispatch<React.SetStateAction<GroupRecord[]>>;
+  latestData: React.RefObject<FetchData>;
+  params: DashboardParams;
+  setParams: React.Dispatch<React.SetStateAction<DashboardParams>>;
   emails: CategorizedEmail[];
   setEmails: React.Dispatch<React.SetStateAction<CategorizedEmail[]>>;
   chartData: ApplicationData;
@@ -16,45 +29,63 @@ const DashboardContext = createContext<DashboardContextValue | undefined>(
   undefined
 );
 
-type ChartOptions = {
-  displayedStatistics: StatisticKey[];
-  dateKey: DateRange;
-  absolute: boolean;
+export type ApplicationData = Record<ApplicationStatus, number | null>[];
+
+export type FetchData = {
+  chartData: ApplicationData;
+  emails: CategorizedEmail[];
+  applications?: GroupRecord[];
 };
 
-export const Statistics = {
-  TOTAL_APPLICATIONS: "Total Applications Sent",
-  TOTAL_RESPOSNES: "Total Responses",
-  TOTAL_INTERVIEWS: "Total Interviews",
-  REJECT_RATE: "Rejection Rate",
-  AVERAGE_RESPONSE_TIME: "Average Response Time",
-  RESPONSE_BY_CATEGORY: "Responses by Category",
-};
+export const DashboardProvider: React.FC<{
+  children: ReactNode;
+  fetchData: FetchData;
+  initalDashboardParams: DashboardParams;
+}> = ({ fetchData, children, initalDashboardParams }) => {
+  const [emails, setEmails] = useState<CategorizedEmail[]>(fetchData.emails);
+  const [applications, setApplications] = useState<GroupRecord[]>(
+    fetchData.applications || []
+  );
+  const [chartData, setChartData] = useState<ApplicationData>(
+    fetchData.chartData
+  );
+  const [isFetching, setIsFetching] = useState(false);
+  const latestData = useRef<FetchData>({ chartData, emails });
+  const [params, setParams] = useState<DashboardParams>(initalDashboardParams);
+  const hasMounted = useRef(false);
 
-export type StatisticKey = keyof typeof Statistics;
-type StatisticValue = (typeof Statistics)[StatisticKey];
+  // const emailFetchURL = "/api/user/emails";
 
-export type ApplicationData = Record<ApplicationStatus, number>[];
+  useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
 
-export const DashboardProvider: React.FC<{ children: ReactNode }> = ({
-  children,
-}) => {
-  const [emails, setEmails] = useState<CategorizedEmail[]>([]);
-  const [chartData, setChartData] = useState<ApplicationData>([]);
-  const [options, setOptions] = useState<ChartOptions>({
-    displayedStatistics: ["TOTAL_APPLICATIONS"] as StatisticKey[],
-    dateKey: DateRanges.Monthly,
-    absolute: false,
-  });
+    setIsFetching(true);
+    composeDashboardData(params).then((data) => {
+      setIsFetching(false);
+      latestData.current = data;
+      setEmails(data.emails);
+      data.emails.forEach((email) => {
+        setEmailItem(email.id, email);
+      });
+    });
+  }, [params]);
+
   return (
     <DashboardContext.Provider
       value={{
-        options,
-        setOptions,
+        isFetching,
+        params,
+        setParams,
         emails,
         setEmails,
         chartData,
         setChartData,
+        latestData,
+        applications,
+        setApplications,
       }}
     >
       {children}

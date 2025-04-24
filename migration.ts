@@ -1,14 +1,12 @@
 import {
-  BatchWriteItemCommand,
   DynamoDBClient,
   QueryCommand,
   QueryCommandInput,
 } from "@aws-sdk/client-dynamodb";
 import { S3Client } from "@aws-sdk/client-s3";
-import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
+import { unmarshall } from "@aws-sdk/util-dynamodb";
 
-import { v4 } from "uuid";
-import { updateGroup } from "./functions/group-from-open-search";
+import { upsertOpenSearchEmailItem } from "./functions/sync-dynamo-to-os";
 
 const URL =
   "https://docs.google.com/document/d/e/2PACX-1vQGUck9HIFCyezsrBSnmENk5ieJuYwpt7YHYEzeNJkIb9OSDdx-ov2nRNReKQyey-cwJOoEKUhLmN9z/pub";
@@ -44,48 +42,44 @@ async function fetchItems() {
   return results ?? [];
 }
 
-async function rewriteItems(items: CategorizedEmail[]) {
-  const newItems: CategorizedEmail[] = items.map((item) => {
-    return {
-      ...item,
-      group_id: v4(),
-    };
-  });
+// async function rewriteItems(items: CategorizedEmail[]) {
+//   const newItems: CategorizedEmail[] = items.map((item) => {
+//     return {
+//       ...item,
+//       group_id: v4(),
+//     };
+//   });
 
-  const batches = [];
-  for (let i = 0; i < newItems.length; i += 25) {
-    const batch = newItems.slice(i, i + 25).map((Item) => ({
-      PutRequest: {
-        Item: marshall(Item),
-      },
-    }));
-    batches.push(batch);
-  }
+//   // const batches = [];
+//   // for (let i = 0; i < newItems.length; i += 25) {
+//   //   const batch = newItems.slice(i, i + 25).map((Item) => ({
+//   //     PutRequest: {
+//   //       Item: marshall(Item),
+//   //     },
+//   //   }));
+//   //   batches.push(batch);
+//   // }
 
-  for (const batch of batches) {
-    await dbClient.send(
-      new BatchWriteItemCommand({
-        RequestItems: {
-          [table]: batch,
-        },
-      })
-    );
-  }
-
-  return newItems;
-}
+//   return newItems;
+// }
 
 async function main() {
   const dynamoItems = await fetchItems();
 
-  const items = await rewriteItems(dynamoItems);
-  const newItems = await Promise.all(
-    items.map(async (item) => {
-      return updateGroup(item);
-    })
-  );
+  // const items = await rewriteItems(dynamoItems);
 
-  console.log(newItems);
+  for (const item of dynamoItems) {
+    // await dbClient.send(
+    //   new BatchWriteItemCommand({
+    //     RequestItems: {
+    //       [table]: batch,
+    //     },
+    //   })
+    // );
+    await upsertOpenSearchEmailItem(item, false);
+  }
+
+  // console.log(newItems);
 }
 
 main();

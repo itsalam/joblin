@@ -42,9 +42,60 @@ declare module "sst" {
       "type": "aws.s3/bucketV2.BucketV2"
     }
     "email-opensearch": {
+      "accessPolicies": string
+      "advancedOptions": {
+      }
+      "advancedSecurityOptions": {
+        "anonymousAuthEnabled": boolean
+        "enabled": boolean
+        "internalUserDatabaseEnabled": boolean
+        "masterUserOptions": {
+          "masterUserArn": string
+          "masterUserName": string
+          "masterUserPassword": string
+        }
+      }
       "arn": string
+      "clusterConfig": {
+        "coldStorageOptions": {
+          "enabled": boolean
+        }
+        "dedicatedMasterCount": number
+        "dedicatedMasterEnabled": boolean
+        "dedicatedMasterType": string
+        "instanceCount": number
+        "instanceType": string
+        "multiAzWithStandbyEnabled": boolean
+        "warmCount": number
+        "warmEnabled": boolean
+        "warmType": string
+        "zoneAwarenessConfig": any
+        "zoneAwarenessEnabled": boolean
+      }
+      "cognitoOptions": {
+        "enabled": boolean
+        "identityPoolId": string
+        "roleArn": string
+        "userPoolId": string
+      }
+      "domainEndpointOptions": {
+        "customEndpoint": string
+        "customEndpointCertificateArn": string
+        "customEndpointEnabled": boolean
+        "enforceHttps": boolean
+        "tlsSecurityPolicy": string
+      }
+      "domainName": string
+      "ebsOptions": {
+        "ebsEnabled": boolean
+        "iops": number
+        "throughput": number
+        "volumeSize": number
+        "volumeType": string
+      }
       "endpoint": string
       "type": "aws.opensearch/domain.Domain"
+      "vpcOptions": any
     }
     "group-from-open-search": {
       "name": string

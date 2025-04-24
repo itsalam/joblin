@@ -72,8 +72,8 @@ export const BreadCrumbItem: FC<BreadCrumbItemProps> = (props) => {
   const date = emailData?.sent_on;
   const crossOrCheck = status === ApplicationStatus.Rejected;
 
-  const EditIcon = motion(id ? CircleEllipsis : CircleFadingPlus);
-  const CrumbIcon = crossOrCheck ? motion(Ban) : motion(CheckCircle2Icon);
+  const EditIcon = motion.create(id ? CircleEllipsis : CircleFadingPlus);
+  const CrumbIcon = motion.create(crossOrCheck ? Ban : CheckCircle2Icon);
   const DisplayIcon = (props: ComponentPropsWithoutRef<typeof EditIcon>) =>
     editMode ? <EditIcon {...props} /> : !id ? <></> : <CrumbIcon {...props} />;
   const onClick = () => {
@@ -139,7 +139,7 @@ export const BreadCrumbItem: FC<BreadCrumbItemProps> = (props) => {
                 )}
                 style={{
                   width: "20px",
-                  height: "calc(100% - 22px)",
+                  height: "calc(100% - 20px)",
                   top: "calc(50% + 12px)",
                 }}
                 preserveAspectRatio="none"

@@ -9,9 +9,9 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { Separator } from "@/components/ui/separator";
-import { timeAgo } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
+import { cn, timeAgo } from "@/lib/utils";
 import { ParsedEmailContent } from "@/types";
-import { createColumnHelper } from "@tanstack/react-table";
 import DOMPurify from "dompurify";
 import { Archive, ChevronLeft, ChevronRight } from "lucide-react";
 import { HTMLProps, useCallback, useEffect, useRef, useState } from "react";
@@ -27,10 +27,20 @@ type RowObj = {
   menu?: string;
 };
 
-function Emails(props: { emails: CategorizedEmail[] }) {
-  const { emails } = props;
-
+function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
+  const { emails, isFetching } = props;
   const [activeEmail, setActiveEmail] = useState<CategorizedEmail>(emails?.[0]);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(15);
+  const hasFetched = useRef(false);
+
+  useEffect(() => {
+    hasFetched.current = hasFetched.current || isFetching;
+    if (isFetching) {
+      setPage(0);
+    }
+  }, [isFetching]);
+
   const EmailCard = useCallback(({
     email,
     ...props
@@ -88,9 +98,6 @@ function Emails(props: { emails: CategorizedEmail[] }) {
     );
   }, []);
 
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(15);
-
   return (
     <Card className={"h-full w-full border-zinc-200 p-0 dark:border-zinc-800"}>
       <ResizablePanelGroup
@@ -98,33 +105,43 @@ function Emails(props: { emails: CategorizedEmail[] }) {
         className="flex overflow-hidden max-h-[600px]"
       >
         <ResizablePanel defaultSize={40} className="flex flex-col relative">
-          <div className="flex items-center justify-end">
-            <p className="text-sm text-gray-500">
-              {1 + page * pageSize}-
-              {Math.min((page + 1) * pageSize, emails.length)} of{" "}
-              {emails.length}
-            </p>
-            <Button
-              variant="ghost"
-              disabled={page === 0}
-              onClick={() => setPage(Math.max(0, page - 1))}
-            >
-              <ChevronLeft />
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={page === Math.ceil(emails.length / pageSize) - 1}
-              onClick={() =>
-                setPage(
-                  Math.min(page + 1, Math.ceil(emails.length / pageSize) - 1)
-                )
-              }
-            >
-              <ChevronRight />
-            </Button>
+          <div className="flex items-center justify-between">
+            {(isFetching || !hasFetched.current) && (
+              <Spinner className="ml-3" />
+            )}
+            <div className="flex items-center justify-end ml-auto">
+              <p className="text-sm text-gray-500">
+                {1 + page * pageSize}-
+                {Math.min((page + 1) * pageSize, emails.length)} of{" "}
+                {emails.length}
+              </p>
+              <Button
+                variant="ghost"
+                disabled={page === 0}
+                onClick={() => setPage(Math.max(0, page - 1))}
+              >
+                <ChevronLeft />
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={page === Math.ceil(emails.length / pageSize) - 1}
+                onClick={() =>
+                  setPage(
+                    Math.min(page + 1, Math.ceil(emails.length / pageSize) - 1)
+                  )
+                }
+              >
+                <ChevronRight />
+              </Button>
+            </div>
           </div>
           <Separator orientation="horizontal" />
-          <div className="p-3 overflow-y-scroll flex-1">
+          <div
+            className={cn(
+              "flex-1 p-3 transition-opacity overflow-y-scroll",
+              { "opacity-25 pointer-none:": isFetching || !hasFetched.current }
+            )}
+          >
             <div className="flex flex-col gap-3">
               {emails.slice(page * pageSize, (page + 1) * pageSize).map((
                 email
@@ -251,14 +268,14 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
       </div>
 
       <Separator orientation="horizontal" />
-      <div className="flex flex-col items-start gap-3 p-5 flex-1 overflow-y-scroll">
+      <div className="flex flex-col items-start gap-3 p-1 flex-1 overflow-y-scroll">
         {emailContent?.html ? (
           <div
             className="email-content flex flex-col gap-0.5 text-xs text-zinc-600 dark:text-white"
             dangerouslySetInnerHTML={{ __html: emailContent.html }}
           />
         ) : (
-          <div className="email-content flex flex-col gap-0.5 text-xs text-zinc-600 dark:text-white w-full">
+          <div className="email-content flex flex-col gap-0.5 p-5 text-xs text-zinc-600 dark:text-white w-full">
             {emailContent?.text}
           </div>
         )}
@@ -271,4 +288,3 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
 };
 
 export default Emails;
-const columnHelper = createColumnHelper<RowObj>();

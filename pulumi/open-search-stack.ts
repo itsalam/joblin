@@ -127,6 +127,28 @@ export default function createOsStack(accountId: string): {
     }
   );
 
+  sst.Linkable.wrap(aws.opensearch.Domain, (domain) => ({
+    properties: {
+      arn: domain.arn,
+      endpoint: domain.endpoint,
+      domainName: domain.domainName,
+      accessPolicies: domain.accessPolicies,
+      advancedSecurityOptions: domain.advancedSecurityOptions,
+      cognitoOptions: domain.cognitoOptions,
+      domainEndpointOptions: domain.domainEndpointOptions,
+      ebsOptions: domain.ebsOptions,
+      clusterConfig: domain.clusterConfig,
+      advancedOptions: domain.advancedOptions,
+      vpcOptions: domain.vpcOptions,
+    },
+    include: [
+      sst.aws.permission({
+        actions: ["es:*"],
+        resources: [domain.arn.apply((arn) => `${arn}/*`)],
+      }),
+    ],
+  }));
+
   const opensearch = new aws.opensearch.Domain("email-opensearch", {
     engineVersion: "OpenSearch_2.9", // Must be 2.9+ for k-NN search
     clusterConfig: {

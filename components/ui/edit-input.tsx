@@ -10,14 +10,14 @@ import {
   MouseEventHandler,
   useEffect,
   useRef,
-  useState
+  useState,
 } from "react";
 
 type TextEvent =
   | React.ClipboardEvent<HTMLInputElement>
   | React.KeyboardEvent<HTMLInputElement>;
 
-const SpinnerGap = motion(LoaderCircle);
+const SpinnerGap = motion.create(LoaderCircle);
 
 export type EditInputProps = {
   iconSize?: number;
@@ -29,11 +29,11 @@ export type EditInputProps = {
   validateValue?: (val?: string) => boolean;
 } & ComponentProps<typeof Input>;
 
-const setInputValue = (input: HTMLElement, value?: string) => {
-  const isInputElement = (element: HTMLElement): element is HTMLInputElement => {
-    return element.tagName.toLowerCase() === "input";
-  };
+const isInputElement = (element: HTMLElement): element is HTMLInputElement => {
+  return element.tagName.toLowerCase() === "input";
+};
 
+const setInputValue = (input: HTMLElement, value?: string) => {
   if (isInputElement(input)) {
     input.value = value ?? "";
   } else {
@@ -43,7 +43,7 @@ const setInputValue = (input: HTMLElement, value?: string) => {
 
 function focusToEnd(el: HTMLElement) {
   el.focus();
-  if(el.tagName.toLowerCase() === "input") {
+  if (el.tagName.toLowerCase() === "input") {
     return;
   }
 
@@ -67,45 +67,43 @@ export const EditInput = (props: EditInputProps) => {
     placeHolder,
     onFetch,
     onClick,
-    validateValue = (val:string) => !!val,
+    validateValue = (val: string) => !!val,
     children,
     ...inputProps
   } = props;
   const inputRef = useRef<typeof motion.input>(null);
-  const [isEdited, setIsEdited] = useState<boolean>(false);
   const [prevValue, setPrevValue] = useState(value);
   const [valid, setValid] = useState<boolean>();
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-
-
   const updateInput = (input: HTMLInputElement) => () => {
     const placeholderText = input?.getAttribute("placeholder");
     const valueText = input.value;
-    const extraPadding = 3;
-    if (placeholderText) {
-    // Create a temporary span element to measure the placeholder text width
-    const tempSpan = document.createElement("span");
-    tempSpan.style.visibility = "hidden";
-    tempSpan.style.whiteSpace = "nowrap";
-    tempSpan.style.fontSize = window.getComputedStyle(input).fontSize;
-    tempSpan.style.fontFamily = window.getComputedStyle(input).fontFamily;
+    const extraPadding = 8;
+    if (placeholderText && isInputElement(input)) {
+      // Create a temporary span element to measure the placeholder text width
+      const tempSpan = document.createElement("span");
+      tempSpan.style.visibility = "hidden";
+      tempSpan.style.whiteSpace = "nowrap";
+      tempSpan.style.fontSize = window.getComputedStyle(input).fontSize;
+      tempSpan.style.fontFamily = window.getComputedStyle(input).fontFamily;
 
-    tempSpan.innerText =
-      placeholderText.length > (valueText?.length ?? 0) ? placeholderText : valueText;
+      tempSpan.innerText =
+        placeholderText.length > (valueText?.length ?? 0)
+          ? placeholderText
+          : valueText;
 
-    // Append the span to the body to get its width
-    document.body.appendChild(tempSpan);
-    const width = tempSpan.offsetWidth + extraPadding;
+      // Append the span to the body to get its width
+      document.body.appendChild(tempSpan);
+      const width = tempSpan.offsetWidth + extraPadding;
 
-    // Remove the temporary span element
-    // document.body.removeChild(tempSpan);
+      // Remove the temporary span element
+      document.body.removeChild(tempSpan);
 
-    // Set the input width
-    input.style.flexBasis = `${width}px`;
-    input.style.width = `${width}px`;
+      // Set the input width
+      input.style.flexBasis = `${width}px`;
+      input.style.width = `${width}px`;
     }
-
   };
 
   useEffect(() => {
@@ -132,25 +130,26 @@ export const EditInput = (props: EditInputProps) => {
 
   const isValid = (target: HTMLInputElement) => {
     const value = target?.value ?? (target as HTMLElement).innerText;
-    return validateValue(value) && (!!target.validity === !!target.validity?.valid);
-  }
-    
+    return (
+      validateValue(value) && !!target.validity === !!target.validity?.valid
+    );
+  };
 
-  const onBlurEvent = (event: Partial<Pick<React.FocusEvent<Element>, "target">>) => {
+  const onBlurEvent = (
+    event: Partial<Pick<React.FocusEvent<Element>, "target">>
+  ) => {
     const target = event.target as HTMLInputElement;
-    if (
-      prevValue &&
-      !isValid(target)
-    ) {
+    if (prevValue && !isValid(target)) {
       setInputValue(target, prevValue);
     } else if (target.value !== prevValue) {
-      setIsEdited(true);
     }
     updateInput(target)();
     setValid(undefined);
-  }
+  };
 
-  const onKeyEvent = (event: Partial<Pick<React.KeyboardEvent<Element>, "key" | "target">>) => {
+  const onKeyEvent = (
+    event: Partial<Pick<React.KeyboardEvent<Element>, "key" | "target">>
+  ) => {
     const target = event.target as HTMLInputElement;
     const isValidTarget = isValid(target);
     if (isValidTarget) {
@@ -158,12 +157,11 @@ export const EditInput = (props: EditInputProps) => {
     } else {
       setValid(false);
     }
-    console.log(isValidTarget)
+    console.log(isValidTarget);
     if ("key" in event) {
       if (event?.key === "Enter") {
         if (isValidTarget) {
           setValid(undefined);
-          
         } else {
           setPrevValue(value ?? placeHolder);
           setInputValue(target, value ?? placeHolder);
@@ -171,7 +169,7 @@ export const EditInput = (props: EditInputProps) => {
         target?.blur();
       }
       if (event?.key === "Escape") {
-        setInputValue(target, prevValue??"");
+        setInputValue(target, prevValue ?? "");
         target?.blur();
       }
     }
@@ -191,7 +189,7 @@ export const EditInput = (props: EditInputProps) => {
     onFetch && setIsLoading(true);
     onFetch?.(e).then(() => {
       setIsLoading(false);
-    })
+    });
   };
 
   return (
@@ -199,7 +197,8 @@ export const EditInput = (props: EditInputProps) => {
       key="editInput"
       role="input"
       className={cn(
-        "flex relative items-center w-fit h-fit placeholder-gray-400"
+        "flex relative items-center w-fit h-fit", // Layout, Flexbox & Grid, Sizing
+        "placeholder-gray-400 mr-7" // Typography, Margin
       )}
     >
       <Input
@@ -217,15 +216,15 @@ export const EditInput = (props: EditInputProps) => {
             }
           ),
         }}
-        className={cn(
-          "pl-0",
-          className
-        )}
+        className={cn(className)}
         type="text"
         placeholder={value ?? placeHolder}
         onBlur={onBlurEvent}
         onFocus={(e) => {
-          setPrevValue((e.target as HTMLInputElement)?.value ?? (e.target as HTMLInputElement)?.innerText)
+          setPrevValue(
+            (e.target as HTMLInputElement)?.value ??
+              (e.target as HTMLInputElement)?.innerText
+          );
         }}
         edit={edit}
         onKeyDown={onKeyEvent}
@@ -240,15 +239,13 @@ export const EditInput = (props: EditInputProps) => {
         asChild={!!children}
         {...inputProps}
       />
-      {isEdited ? <span className="text-blue-400">*</span> : null}
 
       <AnimatePresence mode="wait">
         {edit ? (
           <motion.div
-            className="absolute -right-5"
+            className="absolute -right-6"
             key="editContainer"
-
-      // onAnimationStart={(def) => console.log(def)}
+            // onAnimationStart={(def) => console.log(def)}
             exit="exit"
             whileHover={"hover"}
             initial={{
@@ -276,7 +273,7 @@ export const EditInput = (props: EditInputProps) => {
             {isLoading ? (
               <SpinnerGap className="animate-loader-spin" size={16} />
             ) : (
-              <EditButton onClick={focusInput} iconSize={iconSize}/>
+              <EditButton onClick={focusInput} iconSize={iconSize} />
             )}
           </motion.div>
         ) : null}
@@ -291,16 +288,16 @@ export interface InputProps
 export const Input = forwardRef<
   typeof motion.input,
   React.ComponentPropsWithRef<typeof Root> &
-  React.ComponentPropsWithRef<typeof motion.input> & {
-    asChild?: boolean;
-    disableFocus?: boolean;
-    icon?: React.ReactNode;
-    containerProps?: React.ComponentPropsWithRef<typeof motion.div>;
-    initial?: MotionProps["initial"];
-    variants?: MotionProps["variants"];
-    transition?: MotionProps["transition"];
-    edit?: boolean;
-  }
+    React.ComponentPropsWithRef<typeof motion.input> & {
+      asChild?: boolean;
+      disableFocus?: boolean;
+      icon?: React.ReactNode;
+      containerProps?: React.ComponentPropsWithRef<typeof motion.div>;
+      initial?: MotionProps["initial"];
+      variants?: MotionProps["variants"];
+      transition?: MotionProps["transition"];
+      edit?: boolean;
+    }
 >((
   {
     asChild,
@@ -322,6 +319,7 @@ export const Input = forwardRef<
 ) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [input, setInput] = useState<string>();
+  const [isEdited, setIsEdited] = useState<boolean>(false);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
@@ -331,19 +329,19 @@ export const Input = forwardRef<
     onKeyDown?.(event);
   };
 
-  const Comp = asChild? Root : motion.input;
+  const Comp = asChild ? Root : motion.input;
 
   return (
     <motion.div
       whileHover="hover"
       {...containerProps}
       className={cn(
-        "flex items-center bg-transparent file:bg-transparent", // Layout, Flexbox & Grid, Sizing, Backgrounds
+        "flex items-center bg-transparent file:bg-transparent", // Layout, Flexbox & Grid, Backgrounds
         "rounded-full border-1 disabled:opacity-50 transition-all", // Borders, Effects, Transitions & Animation
         "group border-input py-2 px-3 placeholder:text-muted-foreground", // Etc.
         "ring-offset-background",
         {
-          "has-[:focus]:ring-ring has-[:focus]:ring-offset-2 has-[:focus]:outline-none":
+          "has-focus:ring has-focus:ring-gray-400 has-focus:ring-offset-2 has-focus:outline-none":
             !disableFocus,
         },
         containerProps?.className
@@ -360,7 +358,7 @@ export const Input = forwardRef<
       >
         <Comp
           className={cn(
-            "w-full bg-inherit focus:outline-none pl-1",
+            "w-full bg-inherit focus:outline-none",
             className
           )}
           ref={(node: HTMLInputElement) => {
@@ -368,13 +366,13 @@ export const Input = forwardRef<
             if (typeof ref === "function") {
               ref(node as any);
             } else if (ref) {
-              (ref as React.RefObject<HTMLInputElement | null>).current =
-                node;
+              (ref as React.RefObject<HTMLInputElement | null>).current = node;
             }
           }}
           onInput={(e) => {
             const target = e.target as HTMLInputElement;
             setInput(target.value ?? target.innerText);
+            setIsEdited(true);
           }}
           onFocus={(e) => {
             onFocus?.(e);
@@ -385,26 +383,24 @@ export const Input = forwardRef<
           onKeyDown={handleKeyDown}
           {...props}
         />
+
+        {isEdited ? <span className="text-blue-400">*</span> : null}
         {edit && input?.length ? (
           <button
-          onClick={() => {
-            if (inputRef.current) {
-              setInputValue(
-                inputRef.current,
-                ""
-              );
-              setInput("");
-              focusToEnd(inputRef.current);
-              const event = new Event("input", { bubbles: true });
-              inputRef.current.dispatchEvent(event);
-            }
-          }}
+            className="group-has-focus:block hidden"
+            onClick={() => {
+              console.log("HUH");
+              if (inputRef.current) {
+                setInputValue(inputRef.current, "");
+                setInput("");
+                focusToEnd(inputRef.current);
+                const event = new Event("input", { bubbles: true });
+                inputRef.current.dispatchEvent(event);
+              }
+            }}
           >
-            <X
-            className="cursor-pointer"
-            size={20}
-          />
-            </button>
+            <X className="cursor-pointer" size={14} />
+          </button>
         ) : null}
       </motion.div>
     </motion.div>
@@ -421,7 +417,7 @@ export const EditButton = forwardRef<HTMLButtonElement, EditButtonProps>((
   ref
 ) => {
   const { iconSize = 16, className, ...buttonProps } = props;
-  const EditIcon = motion(PenLine);
+  const EditIcon = motion.create(PenLine);
 
   return (
     <motion.button
