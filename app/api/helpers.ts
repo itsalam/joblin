@@ -29,10 +29,10 @@ let cachedData: Map<string, { expiry: number; payload: CategorizedEmail[] }> =
   new Map();
 let cacheExpiry = 0;
 
-export const fetchEmails = async (
+export const fetchRelevantEmails = async (
   username: string,
+  applicationId: string,
   dateRange?: Date[],
-  applicationId?: string
 ): Promise<CategorizedEmail[]> => {
   const cacheKey = `${username}-${dateRange?.[0]?.toISOString()}-${dateRange?.[1]?.toISOString()}`;
   const now = Date.now();
@@ -63,7 +63,7 @@ export const fetchEmails = async (
   if (dateRange) {
     const [before, after] = [
       dateRange[0].toISOString(),
-      dateRange[1].toISOString(),
+      dateRange[dateRange.length-1].toISOString(),
     ];
     ExpressionAttributeValues = {
       ...ExpressionAttributeValues,
@@ -128,7 +128,6 @@ export const getFormattedEmails = cache(async ({
     return hit._source as CategorizeEmailItem;
   });
 
-  // const emails = await fetchEmails(session?.user?.username!, dateRange);
   const emails = hitItems;
   emails.sort((a, b) => {
     return new Date(b.sent_on).getTime() - new Date(a.sent_on).getTime();
@@ -170,7 +169,7 @@ const filterToFieldMap: Record<FilterType, keyof OpenSearchRecord> = {
   [FilterType.Subject]: "subject",
 };
 
-const searchFromOS = cache(async (
+export const searchFromOS = cache(async (
   username: string,
   params: DashboardParams,
   size: number = 500
@@ -296,12 +295,8 @@ export const getRelativeRangeDates: Record<
     return [startOfInterval, endOfInterval];
   },
   [DateRanges.Monthly]: (date: Date) => {
-    const start = new Date(date.toDateString());
-    start.setDate(1);
-    start.setUTCHours(0, 0, 0, 0);
-    const end = new Date(start.toDateString());
-    end.setMonth(end.getMonth() + 1);
-    end.setDate(0);
+    const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+    const end = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
     return [start, end];
   },
   [DateRanges.Quarterly]: (date: Date) => {

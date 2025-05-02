@@ -3,10 +3,12 @@ import { ParsedMail } from "mailparser";
 
 export type OpenAIResult = {
   is_job_application: boolean;
-  company_title: string;
-  job_title: string;
-  confidence: number;
-  application_status: ApplicationStatus;
+  applications: {
+    company_title: string;
+    job_title: string;
+    confidence: number;
+    application_status: ApplicationStatus;
+  }[];
 };
 
 export type ParsedEmailContent = {
@@ -59,7 +61,7 @@ export type FullGroupRecord = GroupDetails & {
 export type UserRecord = {
   user_name: string;
   app_email: string;
-  source_emails: string[];
+  source_emails: Set<string>;
   user_email: string;
 };
 

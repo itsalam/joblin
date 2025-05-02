@@ -1,7 +1,7 @@
 import { ParsedEmailContent } from "@/types";
-import createDOMPurify from "dompurify";
-import { JSDOM } from "jsdom";
+import * as cheerio from "cheerio";
 import { ParsedMail, simpleParser } from "mailparser";
+import sanitizeHtml from "sanitize-html";
 import { Resource } from "sst";
 import { createLogger, format, transports } from "winston";
 
@@ -44,17 +44,17 @@ const extractFromPreview = (preview: string) => {
 
 export const extractEmailDataFromString = async (
   rawEmail: string,
-  userSourceEmails?: string[]
+  userSourceEmails?: Set<string>
 ): Promise<ParsedEmailContent & { id: string }> => {
   const email = await simpleParser(rawEmail);
-  const messageId = extractOriginalMessageId(email);
+  const messageId = extractOriginalMessageId(email)
   const date = extractEarliestDateFromBody(rawEmail);
   const fromEmails = email.from?.value;
   const nonUserSourceEmails = fromEmails?.filter(
     (emailAddress) =>
-      !emailAddress.address || !userSourceEmails?.includes(emailAddress.address)
+      !emailAddress.address || !userSourceEmails?.has(emailAddress.address)
   );
-  const preview = extractPreview(email);
+  const preview = await extractPreview(email);
   const from =
     nonUserSourceEmails?.[0]?.address ??
     extractFromPreview(preview ?? "") ??
@@ -67,6 +67,7 @@ export const extractEmailDataFromString = async (
     date: date ?? email.date ?? new Date(),
     from: from,
     html: email.html,
+    preview,
   };
 };
 
@@ -131,26 +132,20 @@ export const extractOriginalMessageId = (emailContent: ParsedMail) => {
   return messageId.toString().replace(/[<>]/g, "").replace(/[@.]/g, "_");
 };
 
-export const extractPreview = (content: {
+export const extractPreview = async (content: {
   html: ParsedMail["html"];
   text?: ParsedMail["text"];
 }) => {
   let preview = content.text?.slice(0, 200);
 
   if (!preview && content.html) {
-    const dom = new JSDOM("", { pretendToBeVisual: true });
-    const window = dom.window;
-
-    // Plug JSDOM's window into DOMPurify
-    const DOMPurify = createDOMPurify(window);
-
     // Sanitize the HTML
-    const sanitized = DOMPurify.sanitize(content.html);
+    const sanitized = sanitizeHtml(content.html);
 
-    // Now parse the sanitized HTML
-    const parsedDom = new JSDOM(sanitized);
-    const textContent =
-      parsedDom.window.document.body.textContent?.trim() ?? "";
+    // Use cheerio to parse the sanitized HTML
+    const $ = cheerio.load(sanitized);
+
+    const textContent = $("body").text().trim();
     preview = textContent.slice(0, 200);
   }
   return preview;

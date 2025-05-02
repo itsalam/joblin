@@ -54,8 +54,6 @@ export const DashboardProvider: React.FC<{
   const [params, setParams] = useState<DashboardParams>(initalDashboardParams);
   const hasMounted = useRef(false);
 
-  // const emailFetchURL = "/api/user/emails";
-
   useEffect(() => {
     if (!hasMounted.current) {
       hasMounted.current = true;

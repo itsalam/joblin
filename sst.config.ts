@@ -148,6 +148,7 @@ export default $config({
         opensearch,
         openApiKey,
         stageConsts,
+        usersTable,
       ],
       environment: {
         DRY_RUN: "0",
@@ -216,6 +217,7 @@ export default $config({
         emailArchiveBucket,
         openApiKey,
         usersTable,
+        categorizedEmailsTable,
         stageConsts,
         userPoolEndpoint,
         opensearch,
@@ -228,6 +230,7 @@ export default $config({
         emailArchiveBucket,
         stageConsts,
         userPoolEndpoint,
+        groupedApplicationsTable,
         opensearch,
         categorizedEmailsTable,
       ],
@@ -454,7 +457,7 @@ export default $config({
       }
     );
 
-    const exampleIdentityPolicy = new aws.ses.IdentityPolicy(
+    const attachSESEmailPolicy = new aws.ses.IdentityPolicy(
       "attachSesSendEmailPolicy",
       pulumi
         .all([processEmailLambda.nodes.role.arn, sesDomainIdentity.arn])
@@ -658,7 +661,6 @@ export default $config({
         logoDevSearchToken,
         logoDevFetchToken,
         opensearch,
-        openApiKey, // remove this
       ],
       permissions: [
         {

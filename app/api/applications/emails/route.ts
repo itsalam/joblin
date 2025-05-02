@@ -1,7 +1,7 @@
 import { authOptions } from "@/lib/auth";
 import { handlerFactory } from "@/lib/utils";
 import { getServerSession } from "next-auth";
-import { fetchEmails } from "../../helpers";
+import { fetchRelevantEmails } from "../../helpers";
 
 async function handler(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -13,9 +13,8 @@ async function handler(req: Request) {
 
   const session = await getServerSession(authOptions);
 
-  const emails: CategorizedEmail[] = await fetchEmails(
+  const emails: CategorizedEmail[] = await fetchRelevantEmails(
     session?.user?.username!,
-    undefined,
     applicationId
   );
 

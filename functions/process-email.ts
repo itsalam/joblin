@@ -1,13 +1,10 @@
-import {
-  DynamoDBClient,
-  GetItemCommand,
-  QueryCommand,
-} from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
 import {
   CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   GetObjectCommandOutput,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -27,154 +24,6 @@ const ses = new SESClient();
 const sqs = new SQSClient();
 // const cognito = new CognitoIdentityProviderClient();
 const dynamoDB = new DynamoDBClient();
-
-const deleteRecord = async (record: S3EventRecord["s3"]) => {
-  await s3.send(
-    new DeleteObjectCommand({
-      Bucket: Resource["email-archive-s3"].bucketName,
-      Key: record.object.key,
-    })
-  );
-
-  return {
-    status: 200,
-    body: JSON.stringify({ message: "Successfully deleted bucket" }),
-  };
-};
-
-const extractEmailFromS3 = async (record: S3EventRecord["s3"]) => {
-  // Extract the email from SES event
-  const sesMail = await s3.send(
-    new GetObjectCommand({
-      Bucket: Resource["email-archive-s3"].bucketName,
-      Key: record.object.key,
-    })
-  );
-  if (!sesMail.Body) {
-    throw "Missing body - malformed email";
-  }
-  const rawEmail = await sesMail.Body.transformToString();
-  const emailContent = await simpleParser(rawEmail);
-  return { emailContent, rawEmail };
-};
-
-const getAssociatedUser = async (email: string) => {
-  const userRecord = await dynamoDB
-    .send(
-      new QueryCommand({
-        TableName: Resource["users-table"].name,
-        IndexName: "appEmailIndex",
-        KeyConditionExpression: "id = :id",
-        ExpressionAttributeValues: {
-          ":email": { S: email },
-        },
-        // AttributesToGet: ["source_emails, email"],
-        ProjectionExpression: "source_emails, user_email, user_name",
-      })
-    )
-    .then((res) => {
-      if (!res.Items || res.Items?.length === 0) {
-        return dynamoDB.send(
-          new QueryCommand({
-            TableName: Resource["users-table"].name,
-            IndexName: "userEmailIndex",
-            KeyConditionExpression: "user_email = :email",
-            ExpressionAttributeValues: {
-              ":email": { S: email },
-            },
-            // AttributesToGet: ["source_emails, email"],
-            ProjectionExpression: "source_emails, user_email, user_name",
-          })
-        );
-      }
-      return res;
-    });
-
-  return userRecord.Items?.[0];
-};
-
-const checkSeenEmail = async (messageId: string) => {
-  return await dynamoDB.send(
-    new GetItemCommand({
-      TableName: Resource["categorized-emails-table"].name,
-      Key: {
-        id: {
-          S: messageId!,
-        },
-      },
-    })
-  );
-};
-
-const sendToUserEmail = async (
-  targetEmail: string,
-  userEmail: string,
-  rawEmail: string
-) => {
-  //use SES to forward the email back.
-  const newHeaders = modifyHeaders(rawEmail, {
-    newFrom: targetEmail,
-    newTo: userEmail,
-    newReturnPath: `no-reply@${Resource["consts"].domain}`,
-  });
-  try {
-    const forwardToUser = await ses.send(
-      new SendRawEmailCommand({
-        Source: targetEmail,
-        Destinations: [userEmail], // Ensure SES allows sending here
-        RawMessage: { Data: new TextEncoder().encode(newHeaders) },
-      })
-    );
-  } catch (e) {
-    logger.error(e);
-    if (Resource["App"].stage !== "dev") {
-      throw e;
-    }
-  }
-};
-
-const moveToPersonalPrefix = async (
-  newPrefix: string,
-  record: S3EventRecord["s3"]
-) => {
-  try {
-    const moveEmail = await s3.send(
-      new CopyObjectCommand({
-        Bucket: Resource["email-archive-s3"].bucketName,
-        CopySource: `${Resource["email-archive-s3"].bucketName}/${record.object.key}`,
-        Key: newPrefix,
-      })
-    );
-    // const removeOriginal = await deleteRecord(record);
-  } catch (e) {
-    throw `Moving the email in s3 Failed: ${e}`;
-  }
-};
-
-const processAttachments = async (parsedEmail: ParsedMail) => {
-  if (parsedEmail.attachments.length > 0) {
-    logger.info(`Found ${parsedEmail.attachments.length} attachments.`);
-
-    for (const attachment of parsedEmail.attachments) {
-      if (
-        attachment.contentType === "message/rfc822" ||
-        attachment.filename?.endsWith(".eml")
-      ) {
-        logger.info(`Parsing nested .eml file: ${attachment.filename}`);
-        // Parse the .eml file recursively
-        s3.send(
-          new PutObjectCommand({
-            Bucket: Resource["email-archive-s3"].bucketName,
-            Key: `emails/${attachment.filename}`,
-            Body: attachment.content,
-          })
-        );
-      } else {
-        logger.info(`Skipping non-.eml attachment: ${attachment.filename}`);
-      }
-    }
-  }
-};
 
 export async function handler(event: S3Event) {
   const record = event.Records[0].s3;
@@ -200,12 +49,21 @@ export async function handler(event: S3Event) {
       throw `No user assiociated with the domain name: ${targetEmail}`;
     }
 
-    //query the emails table to see if we've seen this email:
+    //query the emails table to see if we've seen this email in S3:
     let messageId = extractOriginalMessageId(emailContent);
-    const emailRecord = await checkSeenEmail(messageId);
+    const key = `${assiocatedUser["user_name"].S}/${messageId}`;
+    const emailIsInS3 = await checkSeenEmailInS3(key);
 
-    if (emailRecord.Item) {
-      throw `Duplicate found; Ignoring record: ${emailRecord.Item}.. `;
+    if (emailIsInS3 && assiocatedUser["user_name"].S) {
+      const emailDynamoDBObject = await checkSeenEmailInDynamoDB(
+        assiocatedUser["user_name"].S,
+        key
+      );
+      if (emailDynamoDBObject.Items?.length) {
+        throw `Duplicate found; Ignoring record: ${key}.. `;
+      } else {
+        logger.info("S3 record found, but not in DynamoDB");
+      }
     }
 
     if (assiocatedUser && sourceEmail) {
@@ -222,16 +80,11 @@ export async function handler(event: S3Event) {
     }
 
     await processAttachments(emailContent);
-
-    // Write to users personal bucket
-
-    const newKey = `${assiocatedUser["user_name"].S}/${messageId}`;
-
-    await moveToPersonalPrefix(newKey, record);
+    await moveToPersonalPrefix(key, record);
 
     // Send to SQS
     const body = JSON.stringify(
-      { object_key: newKey, user_name: assiocatedUser["user_name"].S },
+      { object_key: key, user_name: assiocatedUser["user_name"].S },
       null,
       2
     );
@@ -244,10 +97,10 @@ export async function handler(event: S3Event) {
 
     await deleteRecord(record);
 
-    logger.info(`Stored email to ${newKey}`);
+    logger.info(`Stored email to ${key}`);
     return {
       statusCode: 200,
-      body: JSON.stringify({ message: `Stored email to ${newKey}` }),
+      body: JSON.stringify({ message: `Stored email to ${key}` }),
     };
   } catch (e) {
     await deleteRecord(record);
@@ -325,4 +178,173 @@ const modifyHeaders = (
       return line;
     })
     .join("\n");
+};
+
+const deleteRecord = async (record: S3EventRecord["s3"]) => {
+  await s3.send(
+    new DeleteObjectCommand({
+      Bucket: Resource["email-archive-s3"].bucketName,
+      Key: record.object.key,
+    })
+  );
+
+  return {
+    status: 200,
+    body: JSON.stringify({ message: "Successfully deleted bucket" }),
+  };
+};
+
+const extractEmailFromS3 = async (record: S3EventRecord["s3"]) => {
+  // Extract the email from SES event
+  const sesMail = await s3.send(
+    new GetObjectCommand({
+      Bucket: Resource["email-archive-s3"].bucketName,
+      Key: record.object.key,
+    })
+  );
+  if (!sesMail.Body) {
+    throw "Missing body - malformed email";
+  }
+  const rawEmail = await sesMail.Body.transformToString();
+  const emailContent = await simpleParser(rawEmail);
+  return { emailContent, rawEmail };
+};
+
+const getAssociatedUser = async (email: string) => {
+  const userRecord = await dynamoDB
+    .send(
+      new QueryCommand({
+        TableName: Resource["users-table"].name,
+        IndexName: "appEmailIndex",
+        KeyConditionExpression: "app_email = :email",
+        ExpressionAttributeValues: {
+          ":email": { S: email },
+        },
+        // AttributesToGet: ["source_emails, email"],
+        ProjectionExpression: "source_emails, user_email, user_name",
+      })
+    )
+    .then((res) => {
+      if (!res.Items || res.Items?.length === 0) {
+        return dynamoDB.send(
+          new QueryCommand({
+            TableName: Resource["users-table"].name,
+            IndexName: "userEmailIndex",
+            KeyConditionExpression: "user_email = :email",
+            ExpressionAttributeValues: {
+              ":email": { S: email },
+            },
+            // AttributesToGet: ["source_emails, email"],
+            ProjectionExpression: "source_emails, user_email, user_name",
+          })
+        );
+      }
+      return res;
+    });
+
+  return userRecord.Items?.[0];
+};
+
+const checkSeenEmailInS3 = async (s3Arn: string) => {
+  try {
+    await s3.send(
+      new HeadObjectCommand({
+        Bucket: Resource["email-archive-s3"].bucketName,
+        Key: s3Arn,
+      })
+    );
+    return true; // Object exists
+  } catch (err: any) {
+    if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) {
+      return false; // Object does not exist
+    }
+    throw err; // Some other error (e.g., permissions)
+  }
+};
+
+const checkSeenEmailInDynamoDB = async (userName: string, s3Arn: string) => {
+  return await dynamoDB.send(
+    new QueryCommand({
+      TableName: Resource["categorized-emails-table"].name,
+      IndexName: "userEmails",
+      KeyConditionExpression: "user_name = :userName",
+      FilterExpression: "s3_arn = :s3Arn",
+      ExpressionAttributeValues: {
+        ":userName": { S: userName },
+        ":s3Arn": { S: s3Arn },
+      },
+      // AttributesToGet: ["source_emails, email"],
+      ProjectionExpression: "source_emails, user_email, user_name",
+    })
+  );
+};
+
+const sendToUserEmail = async (
+  targetEmail: string,
+  userEmail: string,
+  rawEmail: string
+) => {
+  //use SES to forward the email back.
+  const newHeaders = modifyHeaders(rawEmail, {
+    newFrom: targetEmail,
+    newTo: userEmail,
+    newReturnPath: `no-reply@${Resource["consts"].domain}`,
+  });
+  try {
+    const forwardToUser = await ses.send(
+      new SendRawEmailCommand({
+        Source: targetEmail,
+        Destinations: [userEmail], // Ensure SES allows sending here
+        RawMessage: { Data: new TextEncoder().encode(newHeaders) },
+      })
+    );
+  } catch (e) {
+    logger.error(e);
+    if (Resource["App"].stage !== "dev") {
+      throw e;
+    }
+  }
+};
+
+const moveToPersonalPrefix = async (
+  newKey: string,
+  record: S3EventRecord["s3"]
+) => {
+  try {
+    const moveEmail = await s3.send(
+      new CopyObjectCommand({
+        Bucket: Resource["email-archive-s3"].bucketName,
+        CopySource: `${Resource["email-archive-s3"].bucketName}/${record.object.key}`,
+        Key: newKey,
+      })
+    );
+    // const removeOriginal = await deleteRecord(record);
+  } catch (e) {
+    throw `Moving the email in s3 Failed: ${e}`;
+  }
+};
+
+const processAttachments = async (parsedEmail: ParsedMail) => {
+  if (parsedEmail.attachments.length > 0) {
+    logger.info(`Found ${parsedEmail.attachments.length} attachments.`);
+
+    for (const attachment of parsedEmail.attachments) {
+      if (
+        attachment.contentType === "message/rfc822" ||
+        attachment.filename?.endsWith(".eml")
+      ) {
+        logger.info(`Parsing nested .eml file: ${attachment.filename}`);
+        // Parse the .eml file recursively
+        s3.send(
+          new PutObjectCommand({
+            Bucket: Resource["email-archive-s3"].bucketName,
+            Key: `emails/${attachment.filename}`,
+            Body: attachment.content,
+          })
+        );
+      } else {
+        logger.info(`Skipping non-.eml attachment: ${attachment.filename}`);
+      }
+    }
+  }
 };

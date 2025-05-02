@@ -12,9 +12,10 @@ import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { cn, timeAgo } from "@/lib/utils";
 import { ParsedEmailContent } from "@/types";
-import DOMPurify from "dompurify";
+import * as cheerio from "cheerio";
 import { Archive, ChevronLeft, ChevronRight } from "lucide-react";
 import { HTMLProps, useCallback, useEffect, useRef, useState } from "react";
+import sanitizeHtml from "sanitize-html";
 import { LogoAvatar } from "../LogoAvatar";
 
 type RowObj = {
@@ -45,17 +46,14 @@ function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
     email,
     ...props
   }: { email: CategorizedEmail } & HTMLProps<HTMLDivElement>) => {
-    const sanitizedHTML = email.preview
-      ? DOMPurify.sanitize(email.preview)
-      : "";
+    const sanitizedHTML = email.preview ? sanitizeHtml(email.preview) : "";
     // Sanitize the HTML
 
     // Parse into DOM
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(sanitizedHTML, "text/html");
+    const doc = cheerio.load(sanitizedHTML);
 
     // Extract plain text
-    const text = doc.body.textContent ?? "";
+    const text = doc.text() ?? "";
     return (
       <Card
         className={
@@ -225,9 +223,7 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
       if (data.error) {
         setError(data.error);
       } else if (data.email) {
-        const html = DOMPurify.sanitize(data.email.html, {
-          USE_PROFILES: { html: true }, // optionally allow styling/images
-        });
+        const html = sanitizeHtml(data.email.html);
 
         setEmailContent({ ...(data.email as ParsedEmailContent), html });
       }

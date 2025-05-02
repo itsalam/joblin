@@ -26,31 +26,47 @@ export const OpenAIJSONSchema = {
     is_job_application: {
       type: "boolean",
       description:
-        "Whether or not the text found pertains to a job application and the various stages throughout the screening process.",
+        "Whether or not the text found pertains to a job application(s) and the various stages throughout the screening process.",
     },
-    company_title: { type: "string" },
-    job_title: {
-      type: "string",
+    applications: {
+      type: "array",
+      items: {
+        $ref: "#/$defs/application",
+      },
       description:
-        'The title of the job that the candidate is applying for. If the job title has any identifying or unique IDs associated with it, include it. If the job title is not found, return an empty string. i.e ""',
+        "An array of job applications updates found in the text. Each update contains the company name, job title, confidence score, and application status. If the text does not pertain to a job application, return an empty array.",
     },
-    confidence: {
-      type: "number",
-      description:
-        "The confidence that the given information pertains to a candidate's job application",
-    },
-    application_status: {
-      type: "string",
-      enum: Object.values(ApplicationStatus),
+    $defs: {
+      application: {
+        type: "object",
+        properties: {
+          company_title: { type: "string" },
+          job_title: {
+            type: "string",
+            description:
+              'The title of the job that the candidate is applying for. If the job title has any identifying or unique IDs associated with it, include it. If the job title is not found, return an empty string. i.e ""',
+          },
+          confidence: {
+            type: "number",
+            description:
+              "The confidence that the given information pertains to a candidate's job application",
+          },
+          application_status: {
+            type: "string",
+            enum: Object.values(ApplicationStatus),
+          },
+        },
+        required: [
+          "job_title",
+          "company_title",
+          "confidence",
+          "application_status",
+        ],
+        additionalProperties: false,
+      },
     },
   },
-  required: [
-    "is_job_application",
-    "job_title",
-    "company_title",
-    "confidence",
-    "application_status",
-  ],
+  required: ["is_job_application", "applications"],
 };
 
 const logger = lambdaLogger();
@@ -112,47 +128,47 @@ export const handler: SQSHandler = async (event: SQSEvent) => {
       logger.debug(categorizedMessage);
       logger.info("Writing results to table...");
       if (categorizedMessage?.is_job_application) {
-        const groupId =
-          `${categorizedMessage.company_title}${categorizedMessage.job_title ? `-${categorizedMessage.job_title}` : ""}`
-            .toLowerCase()
-            .replace(/\s+/g, "-")
-            .replace(/-+/g, "-");
+        for (const application of categorizedMessage.applications) {
+          const { job_title, company_title, confidence, application_status } =
+            application;
 
-        const categorizedEmail: CategorizedEmail = {
-          user_name,
-          id: messageId,
-          confidence: categorizedMessage.confidence,
-          company_title: categorizedMessage.company_title,
-          application_status: categorizedMessage.application_status,
-          job_title: categorizedMessage.job_title,
-          group_id: uuidv4(),
-          s3_arn: emailKey,
-          sent_on: parsedEmail.date?.toISOString() ?? new Date().toISOString(),
-          preview: parsedEmail.preview,
-          subject: parsedEmail.subject,
-          from: parsedEmail.from,
-        };
+          const categorizedEmail: CategorizedEmail = {
+            user_name,
+            id: messageId + uuidv4().slice(0, 8),
+            confidence: confidence,
+            company_title: company_title,
+            application_status: application_status,
+            job_title: job_title,
+            group_id: uuidv4(),
+            s3_arn: emailKey,
+            sent_on:
+              parsedEmail.date?.toISOString() ?? new Date().toISOString(),
+            preview: parsedEmail.preview,
+            subject: parsedEmail.subject,
+            from: parsedEmail.from,
+          };
+          console.log({ categorizedEmail });
+          const Item = marshall(categorizedEmail) as CategorizeEmailItem;
 
-        const Item = marshall(categorizedEmail) as CategorizeEmailItem;
-
-        try {
-          logger.info("Writing to database...");
-          const writeToDB = await dynamoDB.send(
-            new PutItemCommand({
-              TableName: Resource["categorized-emails-table"].name,
-              Item,
-            })
-          );
-          logger.debug({ writeToDB });
-          logger.info("Writing to grouping queue...");
-          const sendToGroupingQueue = await sqs.send(
-            new SendMessageCommand({
-              QueueUrl: Resource["grouping-queue"].url,
-              MessageBody: JSON.stringify(categorizedEmail),
-            })
-          );
-        } catch (error) {
-          logger.error(error);
+          try {
+            logger.info("Writing to database...");
+            const writeToDB = await dynamoDB.send(
+              new PutItemCommand({
+                TableName: Resource["categorized-emails-table"].name,
+                Item,
+              })
+            );
+            logger.debug({ writeToDB });
+            logger.info("Writing to grouping queue...");
+            const sendToGroupingQueue = await sqs.send(
+              new SendMessageCommand({
+                QueueUrl: Resource["grouping-queue"].url,
+                MessageBody: JSON.stringify(categorizedEmail),
+              })
+            );
+          } catch (error) {
+            logger.error(error);
+          }
         }
       } else {
         logger.info("Email registered as not an application, skiping...");
@@ -172,10 +188,14 @@ async function categorizeMessage(
   if (process.env.DRY_RUN === "1") {
     return {
       is_job_application: true,
-      job_title: "Software Developer - Design Systems",
-      company_title: "Googler",
-      confidence: 0.95,
-      application_status: ApplicationStatus.ApplicationAcknowledged,
+      applications: [
+        {
+          job_title: "Software Developer - Design Systems",
+          company_title: "Googler",
+          confidence: 0.95,
+          application_status: ApplicationStatus.ApplicationAcknowledged,
+        },
+      ],
     };
   }
 
@@ -210,10 +230,11 @@ const getAssistantCompletion = async (message: ParsedEmailContent) => {
 ### **Step 2: Extract Key Information**
 - Extract **Company Name** and **Job Title**.
 - If the **Job Title** has any identifying or unique IDs associated with it, include it.
+- Some email's content may contain multiple applications and their ongoing status, in this case, include them with their own confidence rating.
 
 ---
 
-### **Step 3: Classify Email Status**
+### **Step 3: Classify Application Status**
 - Assign one of the following **status labels**:
   - **ACK** → Acknowledgment of application, usually an automated message.
   - **PROCEED** → Next step discussion, usually a non-automated message.
@@ -228,10 +249,12 @@ const getAssistantCompletion = async (message: ParsedEmailContent) => {
 - The response **must be structured in JSON format** as follows:
 {
   "is_job_application": true,
-  "company_title": "Google",
-  "job_title": "Software Engineer",
-  "confidence": 0.92,
-  "application_status": "INTERVIEW"
+  "applications": [
+    "company_title": "Google",
+    "job_title": "Software Engineer",
+    "confidence": 0.92,
+    "application_status": "INTERVIEW"
+  ]
 }`,
         },
         { role: "user", content: JSON.stringify(message) },

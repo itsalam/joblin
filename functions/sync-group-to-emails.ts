@@ -17,7 +17,7 @@ export async function handler(event: DynamoDBStreamEvent){
       let affectedEmails = [];
       if (newImage) {
         const newItem = unmarshall(newImage as Record<string, AttributeValue>) as GroupRecord;
-        Object.values(newItem.email_ids).forEach(async (email) => {
+        Object.values(newItem.email_ids).flat().forEach(async (email) => {
             logger.info(email)
             return await dynamo.send(
                 new GetItemCommand({
