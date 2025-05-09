@@ -331,7 +331,7 @@ const assignGroup = async (
     );
   }
 
-  if (!isAmbiguous) {
+  if (isAmbiguous) {
     logger.info("Searching for job title...");
   }
 
@@ -437,7 +437,6 @@ const convertToFullRecord = async (
       return res.Responses![Resource["categorized-emails-table"].name].map((
         item
       ) => {
-        console.log({ item });
         lastItem = item;
         return (unmarshall(item) as CategorizedEmail) ?? [];
       });

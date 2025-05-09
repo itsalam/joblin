@@ -1,4 +1,5 @@
 import { ApplicationStatus } from "@/types";
+import sanitize from "sanitize-html";
 
 export const ApplicationStatusTextColor: Partial<
   Record<ApplicationStatus, string>
@@ -58,3 +59,80 @@ export const ApplicationStatusStyle: Record<ApplicationStatus, string> =
     },
     {} as Record<ApplicationStatus, string>
   );
+
+
+export const safelyParseHTMLForDisplay = (html: string) => {
+console.log(html)
+const cleanHtml = sanitize(html, {
+  allowedTags: false, // allow all tags
+  allowedAttributes: {
+    img: ['src', 'srcset', 'alt', 'title', 'width', 'height', 'loading' ],
+    a: ['href', 'name', 'target', 'rel'],
+    '*': ["*"], // allow all attributes
+  },
+  allowedSchemes: ['data', 'https', 'mailto', 'ftp', 'tel'], // allow data URIs and https
+  allowVulnerableTags: true,
+  allowedClasses: {
+    '*': ["*"]
+  },
+
+  transformTags: {
+    '*': (tagName, attribs) => {
+      return {
+        tagName,
+        attribs,
+      };
+    },
+    img: (tagName, attribs) => {
+      const src = attribs.src || '';
+      const isCloudFront = src.includes(process.env.NEXT_PUBLIC_CDN_URL ?? ""); // your CF domain
+      const isDataUri = src.startsWith('data:image');
+
+      if (!isCloudFront && !isDataUri) {
+        return { tagName: 'img', attribs: {} }; // Strip src
+      }
+
+      if (isCloudFront) {
+        if (!src.startsWith('https://')) {
+          const newSrc = `https://${src}`;
+          return {
+            tagName,
+            attribs: {
+              ...attribs,
+              src: newSrc,
+            },
+          };
+        }
+      }
+
+      return {
+        tagName,
+        attribs: {
+          ...attribs,
+          src,
+        },
+      };
+    },
+    a: (tagName, attribs) => {
+      const href = attribs.href || '';
+      const isSafe = href.startsWith('mailto:') || href.startsWith('https://');
+
+      if (!isSafe) {
+        return { tagName: 'a', attribs: {} };
+      }
+
+      return {
+        tagName,
+        attribs: {
+          ...attribs,
+          href,
+          target: '_blank',
+          rel: 'noopener noreferrer',
+        },
+      };
+    },
+  },
+});
+
+  return cleanHtml;
+}

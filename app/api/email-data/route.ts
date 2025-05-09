@@ -14,6 +14,7 @@ const s3 = new S3Client();
 
 async function handler(req: Request) {
   const { searchParams } = new URL(req.url);
+  const messageId = searchParams.get("messageId");
   const s3_arn = searchParams.get("s3_arn");
 
   if (!s3_arn) {
@@ -29,10 +30,19 @@ async function handler(req: Request) {
 
   const rawEmail = await sesMailContent.Body!.transformToString();
   const parsedEmail = await extractEmailDataFromString(rawEmail);
-
+  console.log("https://" + Resource["cdn_distribution"].distributionDomainName + "/emails/" + messageId + "/html")
+  let html;
+  try {
+    html = await fetch("https://" + Resource["cdn_distribution"].distributionDomainName + "/emails/" + parsedEmail.id + "/html").then((res) => 
+    res.text());
+  }  catch (e) {
+    console.error("Error fetching HTML:", e);
+    html = parsedEmail.html;
+  }
   return new Response(
     JSON.stringify({
       email: parsedEmail,
+      html
     }),
     {
       status: 200,

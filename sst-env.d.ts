@@ -5,6 +5,26 @@
 
 declare module "sst" {
   export interface Resource {
+    "EmailCategorizationVpc": {
+      "type": "sst.aws.Vpc"
+    }
+    "ImgProxyApi": {
+      "type": "sst.aws.ApiGatewayV2"
+      "url": string
+    }
+    "ImgProxyKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "ImgProxySalt": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "ImgproxyService": {
+      "service": string
+      "type": "sst.aws.Service"
+      "url": string
+    }
     "LogoDevPK": {
       "type": "sst.sst.Secret"
       "value": string
@@ -28,6 +48,18 @@ declare module "sst" {
     "categorized-emails-table": {
       "name": string
       "type": "sst.aws.Dynamo"
+    }
+    "cdn-assets": {
+      "bucketArn": string
+      "bucketDomainName": string
+      "bucketName": string
+      "type": "aws.s3/bucketV2.BucketV2"
+    }
+    "cdn_distribution": {
+      "distributionDomainName": string
+      "distributionId": string
+      "distributionOrigins": any
+      "type": "aws.cloudfront/distribution.Distribution"
     }
     "consts": {
       "assistantId": string
@@ -140,6 +172,7 @@ declare module "sst" {
     "process-email": {
       "name": string
       "type": "sst.aws.Function"
+      "url": string
     }
     "process-user-confirmation": {
       "name": string

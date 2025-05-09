@@ -18,6 +18,7 @@ import {
 import { unmarshall } from "@aws-sdk/util-dynamodb";
 import { QueryContainer } from "@opensearch-project/opensearch/api/_types/_common.query_dsl.js";
 import { Search_RequestBody } from "@opensearch-project/opensearch/api/index.js";
+import { ResponseError } from "@opensearch-project/opensearch/lib/errors.js";
 import { getServerSession } from "next-auth";
 import { cache } from "react";
 import { Resource } from "sst";
@@ -120,7 +121,7 @@ export const getFormattedEmails = cache(async ({
       absolute: !!absolute,
     });
   } catch (e) {
-    console.error({ e });
+    console.error({ e, ...((e as ResponseError).meta ?? {}) });
   }
 
   const hits = res?.hits?.hits ?? [];
@@ -192,7 +193,6 @@ export const searchFromOS = cache(async (
       },
     },
   }));
-  console.log(dates);
   const dateFilter: QueryContainer = {
     range: {
       sent_on: {
@@ -234,8 +234,6 @@ export const searchFromOS = cache(async (
       },
     },
   };
-
-  console.log({ body });
 
   const searchResp = await client.search({
     index,
@@ -300,13 +298,8 @@ export const getRelativeRangeDates: Record<
     return [start, end];
   },
   [DateRanges.Quarterly]: (date: Date) => {
-    const start = new Date(date.toDateString());
-    start.setMonth(Math.floor(start.getMonth() / 4) * 3);
-    start.setDate(0);
-    start.setUTCHours(0, 0, 0, 0);
-    const end = new Date(start.toDateString());
-    end.setMonth(end.getMonth() + 3);
-    end.setDate(0);
+    const start = new Date(Date.UTC(date.getUTCFullYear(), Math.floor(date.getUTCMonth()/4 * 3), 1));
+    const end = new Date(Date.UTC(date.getUTCFullYear(),Math.floor(date.getUTCMonth()/4) * 3 + 3 , 0));
     return [start, end];
   },
   [DateRanges.Yearly]: (date: Date) => {

@@ -1,85 +1,85 @@
-import {
-  DynamoDBClient,
-  QueryCommand,
-  QueryCommandInput,
-} from "@aws-sdk/client-dynamodb";
 import { S3Client } from "@aws-sdk/client-s3";
-import { unmarshall } from "@aws-sdk/util-dynamodb";
+import { Resource } from "sst";
+import { Readable } from "stream";
 
-import { upsertOpenSearchEmailItem } from "./functions/sync-dynamo-to-os";
 
-const URL =
-  "https://docs.google.com/document/d/e/2PACX-1vQGUck9HIFCyezsrBSnmENk5ieJuYwpt7YHYEzeNJkIb9OSDdx-ov2nRNReKQyey-cwJOoEKUhLmN9z/pub";
 
 const s3 = new S3Client({});
-const dbClient = new DynamoDBClient({ region: "us-east-1" });
+// const dbClient = new DynamoDBClient({ region: "us-east-1" });
 
-const email = "b4881488-6011-7094-4231-99f95f37fc1e";
-const table = "hireable-dev-categorizedemailstableTable-sehzarfd";
-
-async function fetchItems() {
-  let ExpressionAttributeValues: QueryCommandInput["ExpressionAttributeValues"] =
-    {
-      ":user_name": {
-        S: email,
-      },
-    };
-
-  let queryCommand: QueryCommandInput = {
-    TableName: table,
-    IndexName: "userEmails",
-    KeyConditionExpression: "user_name = :user_name",
-    ExpressionAttributeValues,
-  };
-  const results = await dbClient.send(new QueryCommand(queryCommand)).then(
-    (res) => {
-      return (
-        (res.Items?.map((item) => unmarshall(item)) as CategorizedEmail[]) ?? []
-      );
-    },
-    (rej) => console.log({ rej })
+const bucketName = Resource["email-archive-s3"].bucketName;
+const s3Folder = "b4881488-6011-7094-4231-99f95f37fc1e/"
+function isReadableStream(body: unknown): body is Readable {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    typeof (body as Readable).read === "function" &&
+    typeof (body as Readable).on === "function"
   );
-  return results ?? [];
 }
+// Helper to stream body to string/buffer
+const streamToBuffer = (stream: Readable): Promise<Buffer> =>
+  new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+  });
 
-// async function rewriteItems(items: CategorizedEmail[]) {
-//   const newItems: CategorizedEmail[] = items.map((item) => {
-//     return {
-//       ...item,
-//       group_id: v4(),
-//     };
-//   });
-
-//   // const batches = [];
-//   // for (let i = 0; i < newItems.length; i += 25) {
-//   //   const batch = newItems.slice(i, i + 25).map((Item) => ({
-//   //     PutRequest: {
-//   //       Item: marshall(Item),
-//   //     },
-//   //   }));
-//   //   batches.push(batch);
-//   // }
-
-//   return newItems;
-// }
-
+  
 async function main() {
-  const dynamoItems = await fetchItems();
+  // const email = s3.send(
+  //   new GetObjectCommand({
+  //     Bucket: "email-archive-423623864572",
+  //     Key: "emails/CAH=hoMz9YUH8cBQj1hfvk+8uSNsEiU8ghEvafH-ZLWjvgcUujQ_mail_gmail_com",
+  //   })
+  // );
+  console.log(Resource)
 
-  // const items = await rewriteItems(dynamoItems);
+  // const response = await s3.send(new ListObjectsV2Command({
+  //   Bucket: bucketName,
+  //   Prefix: s3Folder
+  // }))
 
-  for (const item of dynamoItems) {
-    // await dbClient.send(
-    //   new BatchWriteItemCommand({
-    //     RequestItems: {
-    //       [table]: batch,
-    //     },
-    //   })
-    // );
-    await upsertOpenSearchEmailItem(item, false);
-  }
+  // const objects = response.Contents ?? [];
+  // const results = await Promise.all(
+  //   objects.map(async (obj) => {
+  //     let body: Buffer;
+  //     let error: Error | null = null;
+  //     let html: string | null = null;
+  //     try {
+  //       const getCommand = new GetObjectCommand({
+  //         Bucket: bucketName,
+  //         Key: obj.Key,
+  //       });
+  //       const data = await s3.send(getCommand);
+  //       const bodyBuffer = data.Body
+  //       if (!bodyBuffer || !isReadableStream(bodyBuffer)) {
+  //         throw new Error("No body");
+  //       }
+  //       body = await streamToBuffer(bodyBuffer);
+  //       const email = await simpleParser(body);
+  //       const messageId = extractOriginalMessageId(email);
+  //       html = await updateHtmlImages(messageId, email);
+  //     } catch (e) {
+  //       console.error(`Error processing object ${obj.Key}:`, e);
+  //       error = e as Error;
+  //     }
 
-  // console.log(newItems);
+  //     return {
+  //       key: obj.Key,
+  //       // content: body?.toString(), // Use body.toString() if it's text
+  //       html,
+  //       error
+  //     };
+  //   })
+  // );
+  
+  // results.forEach((result) => {
+  //   if (result.error) {
+  //     console.error(`Error processing ${result.key}:`, result.error);
+  //   }
+  // });
 }
 
 main();

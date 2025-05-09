@@ -1,5 +1,6 @@
 "use client";
 
+import { safelyParseHTMLForDisplay } from "@/components/helpers";
 import { ApplicationBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,10 +13,8 @@ import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { cn, timeAgo } from "@/lib/utils";
 import { ParsedEmailContent } from "@/types";
-import * as cheerio from "cheerio";
 import { Archive, ChevronLeft, ChevronRight } from "lucide-react";
 import { HTMLProps, useCallback, useEffect, useRef, useState } from "react";
-import sanitizeHtml from "sanitize-html";
 import { LogoAvatar } from "../LogoAvatar";
 
 type RowObj = {
@@ -42,18 +41,10 @@ function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
     }
   }, [isFetching]);
 
-  const EmailCard = useCallback(({
+  const EmailListing = useCallback(({
     email,
     ...props
   }: { email: CategorizedEmail } & HTMLProps<HTMLDivElement>) => {
-    const sanitizedHTML = email.preview ? sanitizeHtml(email.preview) : "";
-    // Sanitize the HTML
-
-    // Parse into DOM
-    const doc = cheerio.load(sanitizedHTML);
-
-    // Extract plain text
-    const text = doc.text() ?? "";
     return (
       <Card
         className={
@@ -83,7 +74,7 @@ function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
           </div>
           <div className="flex flex-col items-start gap-3">
             <p className="text-xs text-zinc-600 dark:text-white line-clamp-2 ellipsis">
-              {text}
+              {email.preview}
             </p>
             <div className="flex gap-1">
               {email.application_status && (
@@ -145,7 +136,7 @@ function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
                 email
               ) => {
                 return (
-                  <EmailCard
+                  <EmailListing
                     email={email}
                     key={email.id}
                     onClick={() => setActiveEmail(email)}
@@ -212,6 +203,7 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
       if (loadedEmail.current?.id === email.id) return; // already loaded
       setLoading(true);
       const searchParams = new URLSearchParams({
+        messageId: email.id,
         s3_arn: email.s3_arn,
       });
 
@@ -219,12 +211,10 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
       const response = await fetch(url);
       const data = await response.json();
       loadedEmail.current = data;
-      console.log(data);
       if (data.error) {
         setError(data.error);
-      } else if (data.email) {
-        const html = sanitizeHtml(data.email.html);
-
+      } else if (data.email && data.html) {
+        const html = safelyParseHTMLForDisplay(data.html);
         setEmailContent({ ...(data.email as ParsedEmailContent), html });
       }
       setLoading(false);
@@ -267,7 +257,7 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
       <div className="flex flex-col items-start gap-3 p-1 flex-1 overflow-y-scroll">
         {emailContent?.html ? (
           <div
-            className="email-content flex flex-col gap-0.5 text-xs text-zinc-600 dark:text-white"
+            className="email-content flex flex-col justify-center align-middle w-full gap-0.5 text-xs text-zinc-600 dark:text-white [&>p]:px-5 [&>p]:p-1 [&>p]:first:pt-5 [&>p]:last:pb-5"
             dangerouslySetInnerHTML={{ __html: emailContent.html }}
           />
         ) : (

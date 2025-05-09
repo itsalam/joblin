@@ -31,8 +31,7 @@ export default function RootLayout({
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased relative`}
         >
-          {children}
-          {dashboard}
+          {dashboard ?? children}
         </body>
       </html>
     </Providers>
