@@ -179,6 +179,7 @@ export const EditInput = ({
   };
 
   const handleMouseDown = (e: MouseEvent) => {
+    e.stopPropagation();
     if (document.activeElement === inputRef.current) {
       focusToEnd(inputRef.current as unknown as HTMLInputElement);
       return;
@@ -247,7 +248,6 @@ export const EditInput = ({
           <motion.div
             className="absolute -right-6"
             key="editContainer"
-            // onAnimationStart={(def) => console.log(def)}
             exit="exit"
             whileHover={"hover"}
             initial={{

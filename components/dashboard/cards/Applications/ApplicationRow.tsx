@@ -10,6 +10,12 @@ import {
 import { EditInput } from "@/components/ui/edit-input";
 import { Separator } from "@/components/ui/separator";
 import TimelineBreadCrumbs from "@/components/ui/timeline";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn, timeAgo } from "@/lib/utils";
 import { ApplicationStatus, Group, GroupRecord } from "@/types";
 import debounce from "debounce";
@@ -120,6 +126,9 @@ export const TableRow = ({
   const [application, setApplication] = useState<GroupRecord>(
     applicationRecord || applicationRecordFallback
   );
+  const [mergingApplications, setMergingApplications] = useState<GroupRecord[]>(
+    []
+  );
   const editDataRef = useRef<Partial<GroupRecord>>({});
   const [expand, setExpand] = useState<boolean>(false);
   const [edit, setEdit] = useState(false);
@@ -229,9 +238,19 @@ export const TableRow = ({
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    console.log(e.dataTransfer.getData("text/plain"));
     const data = JSON.parse(
       e.dataTransfer.getData("text/plain")
     ) as GroupRecord;
+    const target = e.target as HTMLElement;
+    if (
+      target?.closest("tbody")?.attributes.getNamedItem("data-row")?.value ===
+      data.id
+    )
+      return;
+    setMergingApplications((prev) => {
+      return [...prev, data];
+    });
     editDataRef.current = mergeGroupRecord(data);
     setEdit(true);
     setExpand(true);
@@ -248,6 +267,7 @@ export const TableRow = ({
     } else {
       setExpand((prev) => !prev);
       setEdit(false);
+      setMergingApplications([]);
     }
   };
 
@@ -339,6 +359,7 @@ export const TableRow = ({
 
   return (
     <motion.tbody
+      data-row={application.id}
       onDragOver={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -464,6 +485,7 @@ export const TableRow = ({
                   onClick={(e) => {
                     setEdit(!edit);
                     setExpand(true);
+                    setMergingApplications([]);
                   }}
                 >
                   <p className="flex cursor-pointer items-center gap-2 text-zinc-800 hover:font-medium hover:text-zinc-950 dark:text-zinc-200 dark:hover:text-white">
@@ -506,10 +528,50 @@ export const TableRow = ({
             animate={{ maxHeight: expand ? 280 : 0 }}
             exit={{ maxHeight: 0 }}
             transition={{ duration: 0.3 }}
-            className="flex overflow-y-scroll overflow-x-hidden gap-0.5 text-xs text-zinc-600 dark:text-white w-full px-15"
+            className="flex flex-col overflow-y-scroll overflow-x-hidden gap-0.5 text-xs text-zinc-600 dark:text-white w-full px-15"
             layout="size"
           >
-            <div className="flex flex-col flex-1 gap-2.5 py-5 h-fit">
+            {mergingApplications.length > 0 && (
+              <motion.div className={"flex gap-5 px-15 pt-5 items-center"}>
+                <p className="italic text-slate-500 ">Merging...</p>
+                <div className="flex gap-1">
+                  <TooltipProvider>
+                    {mergingApplications.map((app) => (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <LogoAvatar company={app.company_title} size={24} />
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          sideOffset={10}
+                          className={cn(
+                            "flex p-3 rounded-lg border-2 border-accent"
+                          )}
+                          variant={"card"}
+                        >
+                          <PreviewBody
+                            application={app}
+                            avatar={
+                              <LogoAvatar
+                                company={app.company_title}
+                                size={48}
+                                loading="eager"
+                              />
+                            }
+                          />
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </TooltipProvider>
+                </div>
+              </motion.div>
+            )}
+            <div
+              className={cn(
+                "flex flex-col flex-1 gap-2.5 h-fit py-5",
+                mergingApplications.length > 0 ? "pt-1" : "pt-5"
+              )}
+            >
               <TimelineBreadCrumbs
                 expand={expand}
                 applicationData={displayData}
@@ -534,6 +596,7 @@ export const TableRow = ({
                         submitChanges(editDataRef.current, true)?.then((
                           record
                         ) => {
+                          setMergingApplications([]);
                           record && setApplication(record);
                           editDataRef.current = {};
                           setEdit(false);
@@ -547,6 +610,7 @@ export const TableRow = ({
                       variant="secondary"
                       size="sm"
                       onClick={() => {
+                        setMergingApplications([]);
                         setEdit(false);
                         editDataRef.current = {};
                         submitChanges(applicationRecordFallback);

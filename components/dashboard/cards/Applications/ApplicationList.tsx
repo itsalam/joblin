@@ -58,9 +58,14 @@ const ApplicationList = () => {
         draggedApplications={draggedApplications}
         setDraggedApplications={setDraggedApplications}
         container={container}
-        dragEndCallback={(record: GroupRecord) =>
-          setDraggedApplications((prev) => [...prev, record])
-        }
+        dragEndCallback={(record: GroupRecord, target?: HTMLElement) => {
+          if (
+            target?.closest("tbody")?.attributes.getNamedItem("data-row")
+              ?.value === record.id
+          )
+            return;
+          setDraggedApplications((prev) => [...prev, record]);
+        }}
       >
         <table className="w-full">
           <thead>

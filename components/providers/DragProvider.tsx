@@ -16,7 +16,7 @@ interface DragContextValue<D = any> {
   draggedData: RefObject<D | null>;
   isDragging: boolean;
   setIsDragging: React.Dispatch<React.SetStateAction<boolean>>;
-  dragDataCallback?: (data: D) => void;
+  dragDataCallback?: (data: D, target?: HTMLElement) => void;
 }
 
 export const createDragContext = <T, D = any>(
@@ -46,8 +46,8 @@ export const DragProvider = <T, D>({
 }: {
   container: RefObject<HTMLElement | null>;
   children: ReactNode;
-  dragDataCallback?: (data: D) => void;
-  dragEndCallback?: (data: D) => void;
+  dragDataCallback?: (data: D, target?: HTMLElement) => void;
+  dragEndCallback?: (data: D, target?: HTMLElement) => void;
   initialParams: T;
   dragContext: Context<T & DragContextValue<D>>;
 }) => {
@@ -58,7 +58,7 @@ export const DragProvider = <T, D>({
     const data = event.dataTransfer?.getData("text/plain");
     if (data) {
       draggedData.current = JSON.parse(data) as D;
-      dragDataCallback?.(draggedData.current);
+      dragDataCallback?.(draggedData.current, event.target as HTMLElement);
     }
 
     setIsDragging(true);
@@ -70,7 +70,7 @@ export const DragProvider = <T, D>({
 
     if (data) {
       draggedData.current = null;
-      dragEndCallback?.(JSON.parse(data) as D);
+      dragEndCallback?.(JSON.parse(data) as D, event.target as HTMLElement);
     }
   };
 
