@@ -17,7 +17,6 @@ const refreshToken = async (
     ClientId: Resource["user-pool-client"].id!,
     AuthParameters: authParams,
   });
-  console.log(authParams);
   const response = await cognitoClient.send(command);
   if (!response.AuthenticationResult) {
     throw new Error("Authentication failed: ", response.AuthenticationResult);
@@ -40,7 +39,6 @@ export const authOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        console.log("🔹 Running authorize()");
         try {
           if (!credentials) {
             throw new Error("No credentials provided");

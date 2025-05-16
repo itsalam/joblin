@@ -18,7 +18,13 @@ import { z } from "zod";
 import InputField from "../../ui/input-field";
 import { LoadingButton } from "../../ui/loading-button";
 import { useSignUpContext } from "./context";
-import { ErrorMessages, FormSchema, PasswordErrorFlags, PasswordErrorKeys, PasswordErrorMessages } from "./schema";
+import {
+  ErrorMessages,
+  FormSchema,
+  PasswordErrorFlags,
+  PasswordErrorKeys,
+  PasswordErrorMessages,
+} from "./schema";
 import SignUpPage from "./sign-up-page";
 
 // Select only password-related keys
@@ -37,13 +43,13 @@ export function ManualSignUpFormB({
 }: React.ComponentPropsWithoutRef<"div">) {
   const { control, setError, trigger, handleSubmit, formState } =
     useFormContext<z.infer<typeof FormSchema>>();
-  const { goToPage, passwordReqs, setPasswordReqs, setUserUuid } = useSignUpContext()
+  const { goToPage, passwordReqs, setPasswordReqs, setUserUuid } =
+    useSignUpContext();
 
   const [fetching, setIsFetching] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSignUp = (data: z.infer<typeof FormSchema>) => {
-    console.log(data);
     setIsFetching(true);
     const { ["confirm-password"]: _, ...emailData } = data;
     const response = fetch("/api/auth/signup", {
@@ -56,8 +62,8 @@ export function ManualSignUpFormB({
       })
       .then((data) => {
         alert(data.message || data.error);
-        if(data.user){
-            setUserUuid(data.user as string);
+        if (data.user) {
+          setUserUuid(data.user as string);
         }
         setIsFetching(false);
         if (!data.error) {
@@ -67,7 +73,6 @@ export function ManualSignUpFormB({
   };
 
   const onError: SubmitErrorHandler<z.infer<typeof FormSchema>> = (e) => {
-    console.log(e);
     trigger(["password", "confirm-password"]).then((value) => {
       const messages = formState.errors.password
         ?.message as PasswordErrorMessages;
@@ -77,17 +82,17 @@ export function ManualSignUpFormB({
           setPasswordReqs({ ...passwordReqs });
         }
       } else {
-        (Object.keys(e) as Array<keyof z.infer<typeof FormSchema>>).forEach((field) => {
+        (Object.keys(e) as Array<keyof z.infer<typeof FormSchema>>).forEach((
+          field
+        ) => {
           setError(field, {
             type: "manual",
             message: e[field]?.message,
           });
         });
       }
-      console.log("huh", value, messages, passwordReqs[messages], formState.errors )
     });
   };
-
 
   const updatePasswordReqs: ChangeEventHandler<HTMLInputElement> = (e) => {
     const errors = getErrorsForValue(
@@ -117,10 +122,13 @@ export function ManualSignUpFormB({
     const Comp = asChild ? Slot : "div";
     return (
       <Comp
-        className={cn(className, {
-          "text-green-400": passwordReqs[ErrorMessages[passwordReq]] === 1,
-          "text-red-400": passwordReqs[ErrorMessages[passwordReq]] === -1,
-        })}
+        className={cn(
+          className,
+          {
+            "text-green-400": passwordReqs[ErrorMessages[passwordReq]] === 1,
+            "text-red-400": passwordReqs[ErrorMessages[passwordReq]] === -1,
+          }
+        )}
         {...props}
       />
     );

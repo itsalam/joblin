@@ -1,5 +1,7 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { memo, useCallback, useEffect, useState } from "react";
+import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import Image from "next/image";
+import { memo, useMemo } from "react";
+import { useCachedLogo } from "../helpers";
 
 interface LogoAvatarProps {
   company: CategorizedEmail["company_title"];
@@ -12,55 +14,27 @@ export const LogoAvatar = memo(LogoAvatarBase, (prevProps, nextProps) => {
   );
 });
 
-export function LogoAvatarBase({ company, size = 48 }: LogoAvatarProps) {
-  const baseURL = "/api/logo";
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+function LogoAvatarBase({
+  children,
+  company,
+  size = 48,
+  ...props
+}: Partial<React.ComponentPropsWithoutRef<typeof Image>> & LogoAvatarProps) {
+  const logoUrl = useCachedLogo(company);
 
-  useEffect(() => {
-    const fetchLogoUrl = async () => {
-      try {
-        // if (logoUrl) return; // already cached or set
-        const searchParams = new URLSearchParams({
-          company,
-        });
-
-        const url = `${baseURL}?${searchParams.toString()}`;
-        const response = await fetch(url, {
-          next: { revalidate: 1000 },
-        });
-        const data = await response.json();
-        if (data.logo) {
-          setLogoUrl(data.logo);
-        } else {
-          setError("No logo URL found in BIMI record");
-        }
-      } catch (err) {
-        setError("Failed to fetch Logo");
-        console.error(err);
-      }
-    };
-
-    fetchLogoUrl();
-  }, [company, logoUrl]);
-
-  const CallbackAvatar = useCallback(({ logoUrl }: { logoUrl?: string }) => {
+  const CallbackAvatar = useMemo(() => {
     return (
       <Avatar style={{ width: size, height: size }}>
-        {logoUrl ? (
-          <AvatarImage
-            {...{ width: size, height: size }}
-            src={logoUrl}
-            alt={company.slice(0, 1).toLocaleLowerCase()}
-          />
-        ) : (
-          <AvatarFallback>
-            {company.slice(0, 1).toLocaleLowerCase()}
-          </AvatarFallback>
-        )}
+        <AvatarImage
+          {...props}
+          {...{ width: size, height: size }}
+          src={logoUrl}
+          alt={company.slice(0, 1).toLocaleLowerCase()}
+        />
+        {children}
       </Avatar>
     );
-  }, []);
+  }, [logoUrl]);
 
-  return <CallbackAvatar logoUrl={logoUrl ?? undefined} />;
+  return CallbackAvatar;
 }

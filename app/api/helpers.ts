@@ -22,7 +22,7 @@ import { ResponseError } from "@opensearch-project/opensearch/lib/errors.js";
 import { getServerSession } from "next-auth";
 import { cache } from "react";
 import { Resource } from "sst";
-import { FetchData } from "../(providers)/DashboardProvider";
+import { FetchData } from "../../components/providers/DashboardProvider";
 
 const dbClient = new DynamoDBClient({ region: "us-east-1" });
 
@@ -33,7 +33,7 @@ let cacheExpiry = 0;
 export const fetchRelevantEmails = async (
   username: string,
   applicationId: string,
-  dateRange?: Date[],
+  dateRange?: Date[]
 ): Promise<CategorizedEmail[]> => {
   const cacheKey = `${username}-${dateRange?.[0]?.toISOString()}-${dateRange?.[1]?.toISOString()}`;
   const now = Date.now();
@@ -64,7 +64,7 @@ export const fetchRelevantEmails = async (
   if (dateRange) {
     const [before, after] = [
       dateRange[0].toISOString(),
-      dateRange[dateRange.length-1].toISOString(),
+      dateRange[dateRange.length - 1].toISOString(),
     ];
     ExpressionAttributeValues = {
       ...ExpressionAttributeValues,
@@ -87,7 +87,7 @@ export const fetchRelevantEmails = async (
         (res.Items?.map((item) => unmarshall(item)) as CategorizedEmail[]) ?? []
       );
     },
-    (rej) => console.log({ rej })
+    (rej) => console.error({ rej })
   );
   const payload = results ?? [];
   cacheExpiry = now + 60 * 1000; // 1-minute TTL
@@ -293,13 +293,29 @@ export const getRelativeRangeDates: Record<
     return [startOfInterval, endOfInterval];
   },
   [DateRanges.Monthly]: (date: Date) => {
-    const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
-    const end = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
+    const start = new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)
+    );
+    const end = new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)
+    );
     return [start, end];
   },
   [DateRanges.Quarterly]: (date: Date) => {
-    const start = new Date(Date.UTC(date.getUTCFullYear(), Math.floor(date.getUTCMonth()/4 * 3), 1));
-    const end = new Date(Date.UTC(date.getUTCFullYear(),Math.floor(date.getUTCMonth()/4) * 3 + 3 , 0));
+    const start = new Date(
+      Date.UTC(
+        date.getUTCFullYear(),
+        Math.floor((date.getUTCMonth() / 4) * 3),
+        1
+      )
+    );
+    const end = new Date(
+      Date.UTC(
+        date.getUTCFullYear(),
+        Math.floor(date.getUTCMonth() / 4) * 3 + 3,
+        0
+      )
+    );
     return [start, end];
   },
   [DateRanges.Yearly]: (date: Date) => {
@@ -455,7 +471,7 @@ export const getApplicationData = async (params: DashboardParams) => {
             ? entry
             : (unmarshall(entry) as GroupRecord));
       },
-      (rej) => console.log({ rej })
+      (rej) => console.error({ rej })
     );
   }
   return results;

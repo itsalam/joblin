@@ -12,8 +12,8 @@ import SignUpPage from "./sign-up-page";
 
 export function ManualSignUpFormA({
   className,
-//   ...props
-}: React.ComponentPropsWithoutRef<"div">) {
+} //   ...props
+: React.ComponentPropsWithoutRef<"div">) {
   const { control, setError, trigger, getValues, handleSubmit } =
     useFormContext<z.infer<typeof FormSchema>>();
   const { goToPage, setUserUuid } = useSignUpContext();
@@ -28,10 +28,10 @@ export function ManualSignUpFormA({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       }).then((res) => res.json())) as { user: UserType | undefined };
-      console.log(user);
+
       if (user?.UserStatus === "UNCONFIRMED") {
         //Resend otp and go to other pages
-        setUserUuid(user.Username)
+        setUserUuid(user.Username);
         await fetch("/api/auth/resend-otp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

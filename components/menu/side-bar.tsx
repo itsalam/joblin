@@ -24,7 +24,7 @@ export const Sidebar = () => {
   return (
     <motion.nav
       layout
-      className="sticky top-0 h-screen shrink-0 border-r border-slate-300 bg-white p-2"
+      className="sticky top-0 h-screen shrink-0 border-r border-slate-300 bg-white p-3"
       style={{
         width: open ? "225px" : "fit-content",
       }}
@@ -215,7 +215,7 @@ const ToggleClose = ({
       onClick={() => setOpen((pv) => !pv)}
       className="absolute bottom-0 left-0 right-0 border-t border-slate-300 transition-colors hover:bg-slate-100"
     >
-      <div className="flex items-center p-2">
+      <div className="flex items-center p-3">
         <motion.div
           layout
           className="grid size-10 place-content-center text-lg"

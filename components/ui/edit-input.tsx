@@ -1,5 +1,4 @@
 import { cn } from "@/lib/utils";
-import { Root } from "@radix-ui/react-slot";
 import { AnimatePresence, motion, MotionProps } from "framer-motion";
 import { LoaderCircle, PenLine, X } from "lucide-react";
 import {
@@ -23,21 +22,26 @@ export type EditInputProps = {
   iconSize?: number;
   containerClassName?: string;
   edit?: boolean;
-  value?: string;
   placeHolder?: string;
   onFetch?: (e: FormEvent<HTMLInputElement>) => Promise<any>;
-  validateValue?: (val?: string) => boolean;
+  validateValue?: (val: string) => boolean;
+  isTextArea?: boolean;
 } & ComponentProps<typeof Input>;
 
 const isInputElement = (element: HTMLElement): element is HTMLInputElement => {
   return element.tagName.toLowerCase() === "input";
 };
 
-const setInputValue = (input: HTMLElement, value?: string) => {
+const setInputValue = (
+  input: HTMLInputElement,
+  value?: ComponentProps<"input">["value"]
+) => {
+  const stringValue = value != null ? String(value) : "";
+
   if (isInputElement(input)) {
-    input.value = value ?? "";
+    input.value = stringValue;
   } else {
-    input.innerText = value ?? "";
+    (input as HTMLElement).innerText = stringValue;
   }
 };
 
@@ -57,20 +61,20 @@ function focusToEnd(el: HTMLElement) {
   selection?.addRange(range);
 }
 
-export const EditInput = (props: EditInputProps) => {
-  const {
-    className,
-    containerClassName,
-    edit,
-    iconSize = 16,
-    value,
-    placeHolder,
-    onFetch,
-    onClick,
-    validateValue = (val: string) => !!val,
-    children,
-    ...inputProps
-  } = props;
+export const EditInput = ({
+  className,
+  containerClassName,
+  edit,
+  iconSize = 16,
+  value,
+  placeHolder,
+  onFetch,
+  onClick,
+  validateValue = (val: string) => !!val,
+  children,
+  isTextArea,
+  ...inputProps
+}: EditInputProps) => {
   const inputRef = useRef<typeof motion.input>(null);
   const [prevValue, setPrevValue] = useState(value);
   const [valid, setValid] = useState<boolean>();
@@ -122,7 +126,6 @@ export const EditInput = (props: EditInputProps) => {
 
   const focusInput: MouseEventHandler = (e) => {
     e.stopPropagation();
-    console.log("focusInput", inputRef.current);
     if (inputRef.current) {
       focusToEnd(inputRef.current as unknown as HTMLInputElement);
     }
@@ -157,7 +160,7 @@ export const EditInput = (props: EditInputProps) => {
     } else {
       setValid(false);
     }
-    console.log(isValidTarget);
+
     if ("key" in event) {
       if (event?.key === "Enter") {
         if (isValidTarget) {
@@ -177,12 +180,9 @@ export const EditInput = (props: EditInputProps) => {
 
   const handleMouseDown = (e: MouseEvent) => {
     if (document.activeElement === inputRef.current) {
-      if (inputRef.current) {
-        focusToEnd(inputRef.current as unknown as HTMLInputElement);
-      }
+      focusToEnd(inputRef.current as unknown as HTMLInputElement);
       return;
     }
-    e.preventDefault();
   };
 
   const handleSubmit = (e: FormEvent<HTMLInputElement>) => {
@@ -208,17 +208,19 @@ export const EditInput = (props: EditInputProps) => {
           className: cn(
             "flex-initial rounded-sm border-none flex-1 w-auto",
             "p-0 overflow-hidden",
-            containerClassName,
-            {
-              underline: valid !== undefined,
-              "decoration-emerald-400": valid,
-              "decoration-red-400": valid === false,
-            }
+            containerClassName
           ),
         }}
-        className={cn(className)}
+        className={cn(
+          className,
+          {
+            underline: valid !== undefined,
+            "decoration-emerald-400": valid,
+            "decoration-red-400": valid === false,
+          }
+        )}
         type="text"
-        placeholder={value ?? placeHolder}
+        placeholder={String(value ?? placeHolder)}
         onBlur={onBlurEvent}
         onFocus={(e) => {
           setPrevValue(
@@ -236,7 +238,7 @@ export const EditInput = (props: EditInputProps) => {
         }}
         readOnly={!edit}
         children={children}
-        asChild={!!children}
+        isTextArea={isTextArea}
         {...inputProps}
       />
 
@@ -282,25 +284,22 @@ export const EditInput = (props: EditInputProps) => {
   );
 };
 
-export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {}
+export type InputProps = React.ComponentPropsWithRef<"div"> &
+  React.ComponentPropsWithRef<typeof motion.input> & {
+    isTextArea?: boolean;
+    disableFocus?: boolean;
+    icon?: React.ReactNode;
+    containerProps?: React.ComponentPropsWithRef<typeof motion.div>;
+    initial?: MotionProps["initial"];
+    variants?: MotionProps["variants"];
+    transition?: MotionProps["transition"];
+    edit?: boolean;
+    onValueChange?: (value: string) => void;
+  };
 
-export const Input = forwardRef<
-  typeof motion.input,
-  React.ComponentPropsWithRef<typeof Root> &
-    React.ComponentPropsWithRef<typeof motion.input> & {
-      asChild?: boolean;
-      disableFocus?: boolean;
-      icon?: React.ReactNode;
-      containerProps?: React.ComponentPropsWithRef<typeof motion.div>;
-      initial?: MotionProps["initial"];
-      variants?: MotionProps["variants"];
-      transition?: MotionProps["transition"];
-      edit?: boolean;
-    }
->((
+export const Input = forwardRef<typeof motion.input, InputProps>((
   {
-    asChild,
+    isTextArea,
     edit,
     disableFocus,
     containerProps,
@@ -310,15 +309,19 @@ export const Input = forwardRef<
     variants,
     transition,
     onSubmit,
+    onInput,
     onFocus,
     onBlur,
     onKeyDown,
+    onValueChange,
+    value,
     ...props
   },
   ref
 ) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [input, setInput] = useState<string>();
+  // const input = useRef<string>("");
   const [isEdited, setIsEdited] = useState<boolean>(false);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -329,7 +332,7 @@ export const Input = forwardRef<
     onKeyDown?.(event);
   };
 
-  const Comp = asChild ? Root : motion.input;
+  const Comp = isTextArea ? TextArea : motion.input;
 
   return (
     <motion.div
@@ -373,6 +376,7 @@ export const Input = forwardRef<
             const target = e.target as HTMLInputElement;
             setInput(target.value ?? target.innerText);
             setIsEdited(true);
+            onValueChange?.(target.value ?? target.innerText);
           }}
           onFocus={(e) => {
             onFocus?.(e);
@@ -381,15 +385,16 @@ export const Input = forwardRef<
             onBlur?.(e);
           }}
           onKeyDown={handleKeyDown}
+          defaultValue={value}
+          {...(isTextArea ? { contentEditable: edit } : {})}
           {...props}
         />
 
-        {isEdited ? <span className="text-blue-400">*</span> : null}
+        {isEdited ? <span className="text-blue-400 text-xl/3">*</span> : null}
         {edit && input?.length ? (
           <button
             className="group-has-focus:block hidden"
             onClick={() => {
-              console.log("HUH");
               if (inputRef.current) {
                 setInputValue(inputRef.current, "");
                 setInput("");
@@ -406,7 +411,6 @@ export const Input = forwardRef<
     </motion.div>
   );
 });
-Input.displayName = "Input";
 
 export type EditButtonProps = {
   iconSize?: number;
@@ -442,4 +446,36 @@ export const EditButton = forwardRef<HTMLButtonElement, EditButtonProps>((
   );
 });
 
+const TextArea = forwardRef<HTMLDivElement, InputProps>((
+  { value, ...props },
+  ref
+) => {
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (
+      contentRef.current &&
+      !document.activeElement?.isSameNode(contentRef.current)
+    ) {
+      contentRef.current.innerText = String(value ?? "");
+    }
+  }, [value]);
+
+  return (
+    <div
+      ref={(node: HTMLDivElement) => {
+        contentRef.current = node;
+        if (typeof ref === "function") {
+          ref(node as any);
+        } else if (ref) {
+          (ref as React.RefObject<HTMLDivElement | null>).current = node;
+        }
+      }}
+      suppressContentEditableWarning={true}
+      {...props}
+    />
+  );
+});
+
+TextArea.displayName = "TextArea";
 EditButton.displayName = "EditButton";

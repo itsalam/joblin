@@ -1,7 +1,7 @@
 "use server";
 
 import { DashboardParams, GroupRecord } from "@/types";
-import { FetchData } from "../(providers)/DashboardProvider";
+import { FetchData } from "../../components/providers/DashboardProvider";
 import { getApplicationData, getFormattedEmails } from "../api/helpers";
 
 export async function composeDashboardData(

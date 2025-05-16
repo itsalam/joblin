@@ -28,7 +28,7 @@ type BreadCrumbData = {
 
 const TimelineBreadCrumbs = (props: {
   expand: boolean;
-  applicationData: GroupRecord;
+  applicationData: Partial<GroupRecord>;
   editMode: boolean;
 }) => {
   const { applicationData, editMode, expand } = props;
@@ -40,7 +40,9 @@ const TimelineBreadCrumbs = (props: {
       return;
     }
     setIsFetching(true);
-    const groupEmailIds = Object.values(applicationData?.email_ids).flat();
+    const groupEmailIds = Object.values(
+      applicationData?.email_ids ?? []
+    ).flat();
     if (groupEmailIds.every((emailId) => getEmailIem(emailId))) {
       setGroupEmails(
         groupEmailIds.map((emailId) => getEmailIem(emailId) as CategorizedEmail)
@@ -52,7 +54,7 @@ const TimelineBreadCrumbs = (props: {
     const baseURL = "/api/applications/emails";
 
     const searchParams = new URLSearchParams({
-      applicationId: applicationData.id,
+      applicationId: applicationData.id ?? "",
     });
     const url = `${baseURL}?${searchParams.toString()}`;
     let newEmails: CategorizedEmail[] = [];
@@ -61,7 +63,6 @@ const TimelineBreadCrumbs = (props: {
         return x.json() as Promise<FetchData>;
       })
       .then((data) => {
-        console.log({ data });
         setIsFetching(false);
         data.emails.forEach((email) => {
           setEmailItem(email.id, email);
@@ -75,7 +76,7 @@ const TimelineBreadCrumbs = (props: {
           });
         });
       });
-  }, [expand]);
+  }, [expand, applicationData]);
 
   // const { emails } = useDashboard();
 

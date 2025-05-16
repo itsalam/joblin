@@ -132,13 +132,12 @@ export const extractOriginalMessageId = (emailContent: ParsedMail) => {
   return messageId.toString().replace(/[<>]/g, "").replace(/[@.]/g, "_");
 };
 
-export const extractPreview = async (content: {
+export const extractPreview = async (content: ParsedMail & {
   html: ParsedMail["html"];
   text?: ParsedMail["text"];
 }) => {
-  let preview = content.text?.slice(0, 200);
-
-  if (!preview && content.html) {
+  let preview;
+  if (content.html) {
     // Sanitize the HTML
     const sanitized = sanitizeHtml(content.html);
 
@@ -147,6 +146,8 @@ export const extractPreview = async (content: {
 
     const textContent = $("body").text().trim();
     preview = textContent.slice(0, 200);
+  } else {
+     preview = content.text?.slice(0, 200);
   }
   return preview;
 };

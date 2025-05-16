@@ -191,6 +191,7 @@ function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
 
 const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
   const loadedEmail = useRef<ParsedEmailContent>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [emailContent, setEmailContent] = useState<ParsedEmailContent | null>(
     null
   );
@@ -221,6 +222,35 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
     };
     fetchEmailContent();
   }, [email.id]);
+
+  useEffect(() => {
+  const iframe = iframeRef.current;
+  if (!iframe) return;
+
+  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!doc) return;
+
+  // Clear existing content
+  doc.body.innerHTML = "";
+  doc.head.innerHTML = "";
+
+  // Optional: set <base> tag to make links open in new tabs
+  const base = doc.createElement("base");
+  base.target = "_blank";
+  doc.head.appendChild(base);
+
+  // Set encoding
+  const metaCharset = doc.createElement("meta");
+  metaCharset.setAttribute("charset", "utf-8");
+  doc.head.appendChild(metaCharset);
+
+  // Insert sanitized HTML
+  const wrapper = doc.createElement("div");
+  if (emailContent?.html) {
+    wrapper.innerHTML = emailContent?.html;;
+  }
+  doc.body.appendChild(wrapper);
+  }, [emailContent]);
 
   return (
     <div className="flex flex-col h-full flex-1 overflow-hidden">
@@ -256,10 +286,14 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
       <Separator orientation="horizontal" />
       <div className="flex flex-col items-start gap-3 p-1 flex-1 overflow-y-scroll">
         {emailContent?.html ? (
-          <div
-            className="email-content flex flex-col justify-center align-middle w-full gap-0.5 text-xs text-zinc-600 dark:text-white [&>p]:px-5 [&>p]:p-1 [&>p]:first:pt-5 [&>p]:last:pb-5"
-            dangerouslySetInnerHTML={{ __html: emailContent.html }}
-          />
+              <iframe
+              ref={iframeRef}
+              title="Email Preview"
+              sandbox="allow-same-origin"
+              className="email-content flex flex-col justify-center align-middle w-full h-full gap-0.5 text-xs text-zinc-600 dark:text-white [&>p]:px-5 [&>p]:p-1 [&>p]:first:pt-5 [&>p]:last:pb-5"
+              style={{
+              }}
+            />
         ) : (
           <div className="email-content flex flex-col gap-0.5 p-5 text-xs text-zinc-600 dark:text-white w-full">
             {emailContent?.text}

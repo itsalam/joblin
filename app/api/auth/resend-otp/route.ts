@@ -15,7 +15,6 @@ async function handler(req: Request) {
   });
 
   const resendRes = await cognitoClient.send(command);
-  console.log({ resendRes });
   return new Response(
     JSON.stringify({
       message: "New OTP sent to your email.",

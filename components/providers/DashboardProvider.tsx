@@ -10,10 +10,12 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { composeDashboardData } from "../actions/composeDashboard";
+import { composeDashboardData } from "../../app/actions/composeDashboard";
+
+export type FetchedRecords = keyof FetchData;
 
 interface DashboardContextValue {
-  isFetching: boolean;
+  isFetching: Record<FetchedRecords, boolean>;
   applications: GroupRecord[];
   setApplications: React.Dispatch<React.SetStateAction<GroupRecord[]>>;
   latestData: React.RefObject<FetchData>;
@@ -49,7 +51,11 @@ export const DashboardProvider: React.FC<{
   const [chartData, setChartData] = useState<ApplicationData>(
     fetchData.chartData
   );
-  const [isFetching, setIsFetching] = useState(false);
+  const [isFetching, setIsFetching] = useState({
+    emails: false,
+    applications: false,
+    chartData: false,
+  });
   const latestData = useRef<FetchData>({ chartData, emails });
   const [params, setParams] = useState<DashboardParams>(initalDashboardParams);
   const hasMounted = useRef(false);
@@ -60,9 +66,17 @@ export const DashboardProvider: React.FC<{
       return;
     }
 
-    setIsFetching(true);
+    setIsFetching({
+      emails: true,
+      applications: true,
+      chartData: true,
+    });
     composeDashboardData(params).then((data) => {
-      setIsFetching(false);
+      setIsFetching({
+        emails: !!!data.emails,
+        applications: !!!data.applications,
+        chartData: !!!data.chartData,
+      });
       latestData.current = data;
       setEmails(data.emails);
       data.emails.forEach((email) => {

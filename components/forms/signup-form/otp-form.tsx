@@ -33,8 +33,7 @@ const OTPSchema = z.object({
 
 export function OTPForm({ email }: { email?: string }) {
   const { userUuid } = useSignUpContext();
-  const { getValues } =
-      useFormContext<z.infer<typeof FormSchema>>();
+  const { getValues } = useFormContext<z.infer<typeof FormSchema>>();
   const form = useForm<z.infer<typeof OTPSchema>>({
     resolver: zodResolver(OTPSchema),
     defaultValues: {
@@ -51,28 +50,23 @@ export function OTPForm({ email }: { email?: string }) {
     const response = fetch("/api/auth/verify-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username:userUuid, otp }),
+      body: JSON.stringify({ username: userUuid, otp }),
     })
       .then((resp) => {
-        if(resp.ok){
+        if (resp.ok) {
           return resp.json();
         } else {
           // Create an alert component
-          throw(resp.statusText)
+          throw resp.statusText;
         }
       })
       .then((data) => {
-        if(!data.error){
-          console.log(getValues());
+        if (!data.error) {
           const signIn = fetch("/api/auth/signin", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password:getValues().password }),
-          }).then((resp) => 
-            resp.json()
-          ).then((json) => {
-            console.log(json);
-          })
+            body: JSON.stringify({ email, password: getValues().password }),
+          }).then((resp) => resp.json());
         }
         alert(data.message || data.error);
         setIsFetching(false);

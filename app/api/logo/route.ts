@@ -1,4 +1,3 @@
-// /pages/api/logo.ts (Next.js API route)
 import { handlerFactory } from "@/lib/utils";
 import { Resource } from "sst";
 

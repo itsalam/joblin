@@ -339,15 +339,13 @@ export async function streamToString(
       catch(e){
           logger.error(`Error uploading image to S3: ${JSON.stringify({messageId, src: img.src, }, null, 2)}`);
           logger.error(e);
-          continue;
+                  logger.warn(`No S3 key found for image: ${JSON.stringify(img)}`);
+        logger.info(`Replacing ${img.src} with local static img`);
+        html = html.replace(img.tagHtml, "/images/placeholder.png");
       }
       if (s3Key) {
         proxyUrl = Resource["cdn_distribution"].distributionDomainName + "/" + s3Key;
         html = html.replace(img.src, proxyUrl);
-      } else {
-        logger.warn(`No S3 key found for image: ${JSON.stringify(img)}`);
-        logger.info(`Replacing ${img.src} with local static img`);
-        html = html.replace(img.tagHtml, "/images/placeholder.png");
       }
     }
     await s3.send(

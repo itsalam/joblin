@@ -1,7 +1,7 @@
 "use client";
 
-import { useDashboard } from "@/app/(providers)/DashboardProvider";
 import FilterMenu from "@/components/card/CardMenu";
+import { useDashboard } from "@/components/providers/DashboardProvider";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { DateRange, DateRanges } from "@/lib/consts";
-import { cn, debounce } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import debounce from "debounce";
 import { ChevronDown, Search, X } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
@@ -66,7 +67,6 @@ export default function MenuBar() {
       if (match) {
         e.preventDefault();
         const filterValue = match[0].split(":")[1].trim();
-        console.log(match, filterType);
         setFilters((prevFilters) => [
           ...prevFilters,
           {

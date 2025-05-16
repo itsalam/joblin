@@ -1,10 +1,10 @@
 "use client";
 
+import LineChart from "@/components/charts/EmailChart";
 import {
   ApplicationData,
   useDashboard,
-} from "@/app/(providers)/DashboardProvider";
-import LineChart from "@/components/charts/EmailChart";
+} from "@/components/providers/DashboardProvider";
 import { Card } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";

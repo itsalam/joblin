@@ -84,7 +84,6 @@ export const handler: SQSHandler = async (event: SQSEvent) => {
         object_key: string;
         user_name: string;
       };
-      console.log(JSON.parse(record.body))
       const sesMailContent = await s3.send(
         new GetObjectCommand({
           Bucket: Resource["email-archive-s3"].bucketName,
@@ -108,7 +107,7 @@ export const handler: SQSHandler = async (event: SQSEvent) => {
       const rawEmail = await sesMailContent.Body!.transformToString();
       const { id: messageId, ...parsedEmail } =
         await extractEmailDataFromString(rawEmail, user.source_emails);
-      console.log({ messageId})
+
       const alreadyWrittenToDB = await dynamoDB.send(
         new GetItemCommand({
           TableName: Resource["categorized-emails-table"].name,
@@ -147,7 +146,6 @@ export const handler: SQSHandler = async (event: SQSEvent) => {
             subject: parsedEmail.subject,
             from: parsedEmail.from,
           };
-          console.log({ categorizedEmail });
           const Item = marshall(categorizedEmail) as CategorizeEmailItem;
 
           try {

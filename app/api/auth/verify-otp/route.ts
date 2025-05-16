@@ -5,7 +5,6 @@ import { Resource } from "sst";
 
 async function handler(req: Request) {
   const { username, otp } = await req.json(); // OTP entered by user
-  console.log(username, otp);
   const command = new ConfirmSignUpCommand({
     ClientId: Resource["user-pool-client"].id!,
     Username: username,

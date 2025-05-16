@@ -1,4 +1,5 @@
 import { ApplicationStatus } from "@/types";
+import { useEffect, useRef, useState } from "react";
 import sanitize from "sanitize-html";
 
 export const ApplicationStatusTextColor: Partial<
@@ -60,79 +61,179 @@ export const ApplicationStatusStyle: Record<ApplicationStatus, string> =
     {} as Record<ApplicationStatus, string>
   );
 
-
 export const safelyParseHTMLForDisplay = (html: string) => {
-console.log(html)
-const cleanHtml = sanitize(html, {
-  allowedTags: false, // allow all tags
-  allowedAttributes: {
-    img: ['src', 'srcset', 'alt', 'title', 'width', 'height', 'loading' ],
-    a: ['href', 'name', 'target', 'rel'],
-    '*': ["*"], // allow all attributes
-  },
-  allowedSchemes: ['data', 'https', 'mailto', 'ftp', 'tel'], // allow data URIs and https
-  allowVulnerableTags: true,
-  allowedClasses: {
-    '*': ["*"]
-  },
-
-  transformTags: {
-    '*': (tagName, attribs) => {
-      return {
-        tagName,
-        attribs,
-      };
+  const cleanHtml = sanitize(html, {
+    allowedTags: false, // allow all tags
+    allowedAttributes: {
+      img: ["src", "srcset", "alt", "title", "width", "height", "loading"],
+      a: ["href", "name", "target", "rel"],
+      "*": ["*"], // allow all attributes
     },
-    img: (tagName, attribs) => {
-      const src = attribs.src || '';
-      const isCloudFront = src.includes(process.env.NEXT_PUBLIC_CDN_URL ?? ""); // your CF domain
-      const isDataUri = src.startsWith('data:image');
+    allowedSchemes: ["data", "https", "mailto", "ftp", "tel"], // allow data URIs and https
+    allowVulnerableTags: true,
+    allowedClasses: {
+      "*": false,
+    },
 
-      if (!isCloudFront && !isDataUri) {
-        return { tagName: 'img', attribs: {} }; // Strip src
-      }
+    transformTags: {
+      "*": (tagName, attribs) => {
+        return {
+          tagName,
+          attribs,
+        };
+      },
+      img: (tagName, attribs) => {
+        const src = attribs.src || "";
+        const isLocal = src.startsWith("/"); // Check if the src is a local path
+        const isCloudFront = src.includes(
+          process.env.NEXT_PUBLIC_CDN_URL ?? ""
+        ); // your CF domain
+        const isDataUri = src.startsWith("data:image");
 
-      if (isCloudFront) {
-        if (!src.startsWith('https://')) {
-          const newSrc = `https://${src}`;
-          return {
-            tagName,
-            attribs: {
-              ...attribs,
-              src: newSrc,
-            },
-          };
+        // if (!isLocal && !isDataUri) {
+        //   return { tagName: 'img', attribs: {} }; // Strip src
+        // }
+
+        if (isCloudFront) {
+          if (!src.startsWith("https://")) {
+            const newSrc = `https://${src}`;
+            return {
+              tagName,
+              attribs: {
+                ...attribs,
+                src: newSrc,
+              },
+            };
+          }
         }
-      }
 
-      return {
-        tagName,
-        attribs: {
-          ...attribs,
-          src,
-        },
-      };
+        return {
+          tagName,
+          attribs: {
+            ...attribs,
+            src,
+          },
+        };
+      },
+      a: (tagName, attribs) => {
+        const href = attribs.href || "";
+        const isSafe =
+          href.startsWith("mailto:") || href.startsWith("https://");
+
+        if (!isSafe) {
+          return { tagName: "a", attribs: {} };
+        }
+
+        return {
+          tagName,
+          attribs: {
+            ...attribs,
+            href,
+            target: "_blank",
+            rel: "noopener noreferrer",
+          },
+        };
+      },
     },
-    a: (tagName, attribs) => {
-      const href = attribs.href || '';
-      const isSafe = href.startsWith('mailto:') || href.startsWith('https://');
-
-      if (!isSafe) {
-        return { tagName: 'a', attribs: {} };
-      }
-
-      return {
-        tagName,
-        attribs: {
-          ...attribs,
-          href,
-          target: '_blank',
-          rel: 'noopener noreferrer',
-        },
-      };
-    },
-  },
-});
+  });
 
   return cleanHtml;
+};
+
+const logoCache = new Map<string, string | null>();
+const shimmerWithLetter = (w: number, h: number, letter: string) => `
+<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+
+  <rect width="${w}" height="${h}" fill="#DDD" />
+  // <rect id="r" width="${w}" height="${h}" fill="url(#g)" />
+  <text
+    x="50%" y="55%"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-size="${Math.floor(h * 0.66)}"
+    fill="#888"
+    font-family="sans-serif"
+  >
+
+    ${letter}
+  </text>
+</svg>`;
+
+const toBase64 = (str: string) =>
+  typeof window === "undefined"
+    ? Buffer.from(str).toString("base64")
+    : window.btoa(str);
+
+export function useCachedLogo(company: string, size = 48) {
+  const baseURL = "/api/logo";
+  const fallbackUrl = `data:image/svg+xml;base64,${toBase64(shimmerWithLetter(size, size, company.slice(0, 1).toLocaleUpperCase()))}`;
+  const [url, setUrl] = useState<string>(logoCache.get(company) ?? fallbackUrl);
+  const [error, setError] = useState<string | null>(null);
+  const fetchLogoUrl = async () => {
+    try {
+      // if (logoUrl) return; // already cached or set
+      const searchParams = new URLSearchParams({
+        company,
+      });
+
+      const url = `${baseURL}?${searchParams.toString()}`;
+      const response = await fetch(url, {
+        next: { revalidate: 1000 },
+      });
+      const data = await response.json();
+      if (data.logo) {
+        return data.logo;
+      } else {
+        setError("No logo URL found in BIMI record");
+        return fallbackUrl;
+      }
+    } catch (err) {
+      setError("Failed to fetch Logo");
+      console.error(err);
+      return fallbackUrl; // Return the fallback URL
+    }
+  };
+
+  useEffect(() => {
+    if (logoCache.has(company)) return;
+
+    fetchLogoUrl().then((logo) => {
+      logoCache.set(company, logo);
+      setUrl(logo);
+    });
+  }, [company]);
+
+  return url; // Return the logo URL and error state
 }
+
+export const useDraggedData = (
+  ref: HTMLElement,
+  dragDataCallback?: (data: any) => void
+) => {
+  const draggedData = useRef<any>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragStart = (event: DragEvent) => {
+    const data = event.dataTransfer?.getData("text/plain");
+    setIsDragging(true);
+    if (data) {
+      draggedData.current = JSON.parse(data);
+      dragDataCallback?.(draggedData.current);
+    }
+  };
+
+  const handleDragEnd = (event: DragEvent) => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    ref.addEventListener("dragstart", handleDragStart);
+    ref.addEventListener("dragend", handleDragEnd);
+    return () => {
+      ref.removeEventListener("dragstart", handleDragStart);
+      ref.removeEventListener("dragend", handleDragEnd);
+    };
+  }, []);
+
+  return { draggedData, isDragging };
+};

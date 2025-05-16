@@ -81,4 +81,8 @@
   .email-content a {
     @apply text-fuchsia-700 underline-offset-4 transition hover:text-fuchsia-400;
   }
+
+  .drag-preview {
+    @apply rounded-xl border-2 bg-card p-3 flex flex-col;
+  }
 }

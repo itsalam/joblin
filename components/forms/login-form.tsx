@@ -33,7 +33,6 @@ export function LoginForm({
   const [fetching, setIsFetching] = useState<boolean>(false);
 
   const handleSignIn = (data: z.infer<typeof LoginSchema>) => {
-    console.log(data);
     setIsFetching(true);
     const response = signIn("credentials", {
       ...data,

@@ -7,17 +7,17 @@ export function cn(...inputs: ClassValue[]) {
 
 type HandlerFactoryArgs = {
   methods: Request["method"][];
-  handler: (req: Request) => Promise<Response>;
+  handler: (req: Request, params: Promise<any>) => Promise<Response>;
 };
 
 export function handlerFactory({ methods, handler }: HandlerFactoryArgs) {
-  return async (req: Request) => {
+  return async (req: Request, params: Promise<any>) => {
     if (!methods.includes(req.method))
       return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
         status: 405,
       });
     try {
-      return await handler(req);
+      return await handler(req, params);
     } catch (error) {
       if (error instanceof Response) {
         return error;
@@ -117,18 +117,4 @@ export function timeAgo(dateStr: string): string {
     const years = Math.floor(diffInYears);
     return `${years} year${years > 1 ? "s" : ""} ago`;
   }
-}
-
-export function debounce<T extends Function>(
-  func: T,
-  delay: number
-): (...args: any[]) => void {
-  let timeoutId: ReturnType<typeof setTimeout>;
-  return function (this: any, ...args: any[]) {
-    const context = this;
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => {
-      func.apply(context, args);
-    }, delay);
-  };
 }
