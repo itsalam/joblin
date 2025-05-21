@@ -21,9 +21,11 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
   dashboard,
+  emails,
 }: Readonly<{
   children: React.ReactNode;
   dashboard: React.ReactNode;
+  emails: React.ReactNode;
 }>) {
   return (
     <Providers>
@@ -32,6 +34,7 @@ export default function RootLayout({
           className={`${geistSans.variable} ${geistMono.variable} antialiased relative`}
         >
           {dashboard ?? children}
+          {emails}
         </body>
       </html>
     </Providers>

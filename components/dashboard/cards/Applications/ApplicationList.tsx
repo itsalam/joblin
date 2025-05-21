@@ -1,4 +1,4 @@
-import { composeDashboardData } from "@/app/actions/composeDashboard";
+import { composeDashboardData } from "@/app/(actions)/composeDashboard";
 import { useDashboard } from "@/components/providers/DashboardProvider";
 import { Card } from "@/components/ui/card";
 import { GroupRecord } from "@/types";

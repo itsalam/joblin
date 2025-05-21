@@ -13,7 +13,7 @@ import { ComponentProps, ComponentPropsWithoutRef, FC } from "react";
 import { BreadcrumbTooltip } from "./breadcrumb-tooltip";
 
 export type BreadCrumbItemProps = {
-  applicationData: GroupRecord;
+  applicationData: Partial<GroupRecord>;
   emailData?: CategorizedEmail;
   editMode: boolean;
   isLast?: boolean;
@@ -54,7 +54,9 @@ const draw = {
   },
 } as Variants;
 
-export const BreadCrumbItem: FC<BreadCrumbItemProps> = (props) => {
+export const BreadCrumbItem: FC<
+  BreadCrumbItemProps & ComponentProps<typeof motion.li>
+> = (props) => {
   const {
     editMode,
     emailData,
@@ -64,10 +66,9 @@ export const BreadCrumbItem: FC<BreadCrumbItemProps> = (props) => {
     index,
     status,
     stepColor,
+    ...componentProps
   } = props;
-  // const setEditingStatus = useApplicationStore(
-  //   (store) => store.setEditingStatus
-  // );
+
   const id = emailData?.id;
   const date = emailData?.sent_on;
   const crossOrCheck = status === ApplicationStatus.Rejected;
@@ -88,7 +89,6 @@ export const BreadCrumbItem: FC<BreadCrumbItemProps> = (props) => {
           style={{
             color: stepColor,
           }}
-          onClick={onClick}
           className={cn(
             "flex flex-1 relative gap-4 items-center group py-2.5",
             {
@@ -101,6 +101,7 @@ export const BreadCrumbItem: FC<BreadCrumbItemProps> = (props) => {
           transition={{
             staggerChildren: CIRCLE_DURATION,
           }}
+          {...componentProps}
         >
           <motion.div
             className={cn(

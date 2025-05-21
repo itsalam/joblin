@@ -83,6 +83,7 @@ export const safelyParseHTMLForDisplay = (html: string) => {
         };
       },
       img: (tagName, attribs) => {
+        // TOOD: Add a safe mode for protected sources only
         const src = attribs.src || "";
         const isLocal = src.startsWith("/"); // Check if the src is a local path
         const isCloudFront = src.includes(
@@ -141,11 +142,22 @@ export const safelyParseHTMLForDisplay = (html: string) => {
 };
 
 const logoCache = new Map<string, string | null>();
-const shimmerWithLetter = (w: number, h: number, letter: string) => `
+const shimmerWithLetter = (
+  w: number,
+  h: number,
+  letter: string,
+  isLoading: boolean
+) => `
 <svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
 
   <rect width="${w}" height="${h}" fill="#DDD" />
-  // <rect id="r" width="${w}" height="${h}" fill="url(#g)" />
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color: #DDD; stop-opacity: 1" />
+      <stop offset="100%" style="stop-color: #EEE; stop-opacity: 1" />
+    </linearGradient>
+  </defs>
+  ${isLoading ? `<rect id="r" width="${w}" height="${h}" fill="url(#g)"/>` : ""}
   <text
     x="50%" y="55%"
     text-anchor="middle"
@@ -164,9 +176,9 @@ const toBase64 = (str: string) =>
     ? Buffer.from(str).toString("base64")
     : window.btoa(str);
 
-export function useCachedLogo(company: string, size = 48) {
+export function useCachedLogo(company: string, size = 48, isLoading = false) {
   const baseURL = "/api/logo";
-  const fallbackUrl = `data:image/svg+xml;base64,${toBase64(shimmerWithLetter(size, size, company.slice(0, 1).toLocaleUpperCase()))}`;
+  const fallbackUrl = `data:image/svg+xml;base64,${toBase64(shimmerWithLetter(size, size, company.slice(0, 1).toLocaleUpperCase(), isLoading))}`;
   const [url, setUrl] = useState<string>(logoCache.get(company) ?? fallbackUrl);
   const [error, setError] = useState<string | null>(null);
   const fetchLogoUrl = async () => {
@@ -237,3 +249,11 @@ export const useDraggedData = (
 
   return { draggedData, isDragging };
 };
+
+export function createSafeId(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\-_:.]/gi, "-") // Replace invalid characters
+    .replace(/^[^a-z]+/, "id-"); // Ensure starts with a valid letter
+}

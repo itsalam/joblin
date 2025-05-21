@@ -6,6 +6,7 @@ import { useCachedLogo } from "../helpers";
 interface LogoAvatarProps {
   company: CategorizedEmail["company_title"];
   size?: number;
+  isLoading?: boolean;
 }
 
 export const LogoAvatar = memo(LogoAvatarBase, (prevProps, nextProps) => {
@@ -18,9 +19,10 @@ function LogoAvatarBase({
   children,
   company,
   size = 48,
+  isLoading = false,
   ...props
 }: Partial<React.ComponentPropsWithoutRef<typeof Image>> & LogoAvatarProps) {
-  const logoUrl = useCachedLogo(company);
+  const logoUrl = useCachedLogo(company, size, isLoading);
 
   const CallbackAvatar = useMemo(() => {
     return (

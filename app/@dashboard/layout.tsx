@@ -2,8 +2,8 @@ import { authOptions } from "@/lib/auth";
 import { DateRanges } from "@/lib/consts";
 import { StatisticKey } from "@/types";
 import { getServerSession } from "next-auth";
+import { composeDashboardData } from "../(actions)/composeDashboard";
 import { DashboardProvider } from "../../components/providers/DashboardProvider";
-import { composeDashboardData } from "../actions/composeDashboard";
 
 export default async function DashboardLayout({
   children,

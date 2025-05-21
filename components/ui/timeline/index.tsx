@@ -1,4 +1,5 @@
 import { ApplicationStatusColor } from "@/components/helpers";
+import { useDashboard } from "@/components/providers/DashboardProvider";
 import { getEmailIem, setEmailItem } from "@/lib/clientCache";
 import { cn } from "@/lib/utils";
 import { ApplicationStatus, GroupRecord } from "@/types";
@@ -31,6 +32,7 @@ const TimelineBreadCrumbs = (props: {
   applicationData: Partial<GroupRecord>;
   editMode: boolean;
 }) => {
+  const { focusToEmail } = useDashboard();
   const { applicationData, editMode, expand } = props;
   const [groupEmails, setGroupEmails] = useState<CategorizedEmail[]>([]);
   const [isFetching, setIsFetching] = useState(false);
@@ -110,6 +112,7 @@ const TimelineBreadCrumbs = (props: {
       return (
         <BreadCrumbItem
           applicationData={applicationData}
+          onClick={() => focusToEmail(email?.id ?? "")}
           emailData={email}
           stepColor={getStepColor(email?.id, application_status)}
           key={`${i}-${email?.id ?? application_status}`}

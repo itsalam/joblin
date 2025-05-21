@@ -1,6 +1,7 @@
 "use client";
 
-import { safelyParseHTMLForDisplay } from "@/components/helpers";
+import { createSafeId, safelyParseHTMLForDisplay } from "@/components/helpers";
+import { useDashboard } from "@/components/providers/DashboardProvider";
 import { ApplicationBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -28,10 +29,11 @@ type RowObj = {
 };
 
 function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
+  const { setActiveEmail, activeEmail } = useDashboard();
   const { emails, isFetching } = props;
-  const [activeEmail, setActiveEmail] = useState<CategorizedEmail>(emails?.[0]);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(15);
+  const emailContainerRef = useRef<HTMLDivElement>(null);
   const hasFetched = useRef(false);
 
   useEffect(() => {
@@ -43,20 +45,25 @@ function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
 
   const EmailListing = useCallback(({
     email,
+    active,
     ...props
-  }: { email: CategorizedEmail } & HTMLProps<HTMLDivElement>) => {
+  }: {
+    email: CategorizedEmail;
+    active: boolean;
+  } & HTMLProps<HTMLDivElement>) => {
     return (
       <Card
-        className={
-          "h-full w-full border-zinc-200 p-0 dark:border-zinc-800 sm:overflow-auto hover:bg-gray-100 transition duration-200"
-        }
+        className={cn(
+          "sm:overflow-auto p-0 w-full h-full hover:bg-gray-100", // Layout, Spacing, Sizing, Backgrounds
+          "border-zinc-200 dark:border-zinc-800 transition duration-200", // Borders, Transitions & Animation
+          active ? "bg-gray-100 dark:bg-zinc-800" : ""
+        )}
         {...props}
       >
         <div className="flex flex-col gap-3 p-5">
           <div className="flex gap-3 items-center">
             <LogoAvatar company={email.company_title} size={32} />
             <div className="flex flex-col w-full">
-              <div></div>
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-zinc-950 dark:text-white">
                   {email.company_title}
@@ -88,7 +95,10 @@ function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
   }, []);
 
   return (
-    <Card className={"h-full w-full border-zinc-200 p-0 dark:border-zinc-800"}>
+    <Card
+      className={"h-full w-full border-zinc-200 p-0 dark:border-zinc-800"}
+      id="email-card"
+    >
       <ResizablePanelGroup
         direction="horizontal"
         className="flex overflow-hidden max-h-[600px]"
@@ -126,18 +136,21 @@ function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
           </div>
           <Separator orientation="horizontal" />
           <div
+            role="group"
             className={cn(
               "flex-1 p-3 transition-opacity overflow-y-scroll",
               { "opacity-25 pointer-none:": isFetching || !hasFetched.current }
             )}
           >
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3" ref={emailContainerRef}>
               {emails.slice(page * pageSize, (page + 1) * pageSize).map((
                 email
               ) => {
                 return (
                   <EmailListing
+                    active={activeEmail?.id === email.id}
                     email={email}
+                    id={createSafeId(email.id)}
                     key={email.id}
                     onClick={() => setActiveEmail(email)}
                   />
@@ -224,61 +237,77 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
   }, [email.id]);
 
   useEffect(() => {
-  const iframe = iframeRef.current;
-  if (!iframe) return;
+    const iframe = iframeRef.current;
+    if (!iframe) return;
 
-  const doc = iframe.contentDocument || iframe.contentWindow?.document;
-  if (!doc) return;
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
 
-  // Clear existing content
-  doc.body.innerHTML = "";
-  doc.head.innerHTML = "";
+    // Clear existing content
+    doc.body.innerHTML = "";
+    doc.head.innerHTML = "";
 
-  // Optional: set <base> tag to make links open in new tabs
-  const base = doc.createElement("base");
-  base.target = "_blank";
-  doc.head.appendChild(base);
+    // Optional: set <base> tag to make links open in new tabs
+    const base = doc.createElement("base");
+    base.target = "_blank";
+    doc.head.appendChild(base);
 
-  // Set encoding
-  const metaCharset = doc.createElement("meta");
-  metaCharset.setAttribute("charset", "utf-8");
-  doc.head.appendChild(metaCharset);
+    // Set encoding
+    const metaCharset = doc.createElement("meta");
+    metaCharset.setAttribute("charset", "utf-8");
+    doc.head.appendChild(metaCharset);
 
-  // Insert sanitized HTML
-  const wrapper = doc.createElement("div");
-  if (emailContent?.html) {
-    wrapper.innerHTML = emailContent?.html;;
-  }
-  doc.body.appendChild(wrapper);
+    // Insert sanitized HTML
+    const wrapper = doc.createElement("div");
+    if (emailContent?.html) {
+      wrapper.innerHTML = emailContent?.html;
+    }
+    doc.body.appendChild(wrapper);
   }, [emailContent]);
 
-  return (
-    <div className="flex flex-col h-full flex-1 overflow-hidden">
-      <div className="flex gap-3 items-center p-5">
-        <LogoAvatar company={email.company_title} size={44} />
-        <div className="flex flex-col gap-0.5 w-full">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-zinc-950 dark:text-white">
-              {email.company_title}
+  const Avatar = useCallback(
+    () => (
+      <LogoAvatar company={email.company_title} size={44} isLoading={loading} />
+    ),
+    [email]
+  );
 
-              <span className="font-normal text-xs text-zinc-600 dark:text-white">
-                {` <${email.from}>`}
-              </span>
-            </p>
-            <p className="text-xs font-medium text-zinc-950 dark:text-white">
+  return (
+    <div className="flex flex-col h-full flex-1 overflow-hidden" id={email.id}>
+      <div className="flex gap-3 items-center p-5">
+        <Avatar />
+
+        <div className="flex items-center gap-2 h-full relative justify-between w-full">
+          <div className="flex flex-col gap-0.5 w-full">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-zinc-950 dark:text-white">
+                {email.company_title}
+
+                <span className="font-normal text-xs text-zinc-600 dark:text-white">
+                  {` <${email.from}>`}
+                </span>
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-zinc-950 dark:text-white">
+                {email.subject}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-zinc-600 dark:text-white">
+                {`${email.job_title}`}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col items-end justify-around w-min h-full">
+            <p className="text-xs font-medium text-zinc-950 dark:text-white text-nowrap">
               {timeAgo(email.sent_on)}
             </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-zinc-950 dark:text-white">
-              {email.subject}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-zinc-600 dark:text-white">
-              {`${email.job_title}`}
-            </p>
+            <ApplicationBadge
+              status={email.application_status}
+              className="text-xs"
+            />
           </div>
         </div>
       </div>
@@ -286,14 +315,13 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
       <Separator orientation="horizontal" />
       <div className="flex flex-col items-start gap-3 p-1 flex-1 overflow-y-scroll">
         {emailContent?.html ? (
-              <iframe
-              ref={iframeRef}
-              title="Email Preview"
-              sandbox="allow-same-origin"
-              className="email-content flex flex-col justify-center align-middle w-full h-full gap-0.5 text-xs text-zinc-600 dark:text-white [&>p]:px-5 [&>p]:p-1 [&>p]:first:pt-5 [&>p]:last:pb-5"
-              style={{
-              }}
-            />
+          <iframe
+            ref={iframeRef}
+            title="Email Preview"
+            sandbox="allow-same-origin"
+            className="email-content flex flex-col justify-center align-middle w-full h-full gap-0.5 text-xs text-zinc-600 dark:text-white [&>p]:px-5 [&>p]:p-1 [&>p]:first:pt-5 [&>p]:last:pb-5"
+            style={{}}
+          />
         ) : (
           <div className="email-content flex flex-col gap-0.5 p-5 text-xs text-zinc-600 dark:text-white w-full">
             {emailContent?.text}

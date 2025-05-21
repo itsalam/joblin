@@ -9,7 +9,6 @@ import MenuBar from "./cards/MenuBar";
 
 export default function Main() {
   const { isFetching, latestData } = useDashboard();
-  console.log(isFetching);
   return (
     <div
       className="dark:bg-background-900 flex flex-col h-full w-full bg-white"

@@ -69,6 +69,7 @@ export enum FilterType {
   Subject = "Subject",
   Company = "Company",
   Position = "Position",
+  Id = "Id",
 }
 
 export type Filter = {

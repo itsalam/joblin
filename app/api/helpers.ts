@@ -165,6 +165,7 @@ export const getFormattedEmails = cache(async ({
 });
 
 const filterToFieldMap: Record<FilterType, keyof OpenSearchRecord> = {
+  [FilterType.Id]: "id",
   [FilterType.Company]: "company_title",
   [FilterType.Position]: "job_title",
   [FilterType.Subject]: "subject",

@@ -238,7 +238,6 @@ export const TableRow = ({
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    console.log(e.dataTransfer.getData("text/plain"));
     const data = JSON.parse(
       e.dataTransfer.getData("text/plain")
     ) as GroupRecord;
