@@ -6,7 +6,7 @@ import { AnimatePresence } from "motion/react";
 
 export default function Dashboard() {
   return (
-    <div className="flex" key="dashboard">
+    <div className="flex max-w-screen" key="dashboard">
       <AnimatePresence>
         <Sidebar key="sideBar" />
         <Main key={"main"} />

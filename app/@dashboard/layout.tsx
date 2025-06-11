@@ -1,7 +1,8 @@
 import { authOptions } from "@/lib/auth";
 import { DateRanges } from "@/lib/consts";
-import { StatisticKey } from "@/types";
+import { DashboardParams, StatisticKey } from "@/types";
 import { getServerSession } from "next-auth";
+import { cookies } from "next/headers";
 import { composeDashboardData } from "../(actions)/composeDashboard";
 import { DashboardProvider } from "../../components/providers/DashboardProvider";
 
@@ -9,6 +10,7 @@ export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
+  initalDashboardParams?: DashboardParams;
 }) {
   const session = await getServerSession(authOptions);
 
@@ -16,20 +18,35 @@ export default async function DashboardLayout({
     return null;
   }
 
-  const initalDashboardParams = {
+  const cookieStore = await cookies();
+
+  const cookiesParams = (() => {
+    try {
+      return JSON.parse(cookieStore.get("dashboard-params")?.value || "{}");
+    } catch (e) {
+      console.error("Error parsing dashboard params from cookies", e);
+      return {};
+    }
+  })() as Partial<DashboardParams>;
+
+  const defaultDashboardParams: DashboardParams = {
     displayedStatistics: ["TOTAL_APPLICATIONS"] as StatisticKey[],
     dateKey: DateRanges.Monthly,
     filters: [],
+    applicationPageIndex: 0,
   };
 
-  const { emails, chartData } = await composeDashboardData(
-    initalDashboardParams
-  );
+  console.log(cookiesParams);
+
+  const { emails, chartData } = await composeDashboardData({
+    ...defaultDashboardParams,
+    ...cookiesParams,
+  });
 
   return (
     <DashboardProvider
       fetchData={{ emails, chartData }}
-      initalDashboardParams={initalDashboardParams}
+      initalDashboardParams={{ ...defaultDashboardParams, ...cookiesParams }}
     >
       {children}
     </DashboardProvider>

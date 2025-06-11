@@ -50,7 +50,7 @@ export default function MenuBar() {
   const [filters, setFilters] = useState<Filter[]>([]);
   const hasBeenUpdated = useRef(false);
 
-  const isFetchingFromMenuBar = isFetching && hasBeenUpdated.current;
+  const isFetchingFromMenuBar = isFetching && !hasBeenUpdated.current;
 
   const convertInputToFilter = (
     input: string,
@@ -98,14 +98,14 @@ export default function MenuBar() {
   }, [value, filters]);
 
   useEffect(() => {
-    if (!isFetching) {
+    if (!Object.values(isFetching).find((v) => v)) {
       hasBeenUpdated.current = false;
     }
   }, [isFetching]);
 
   return (
     <Header
-      className={cn({ "rounded-b-none": value.length || filters.length > 0 })}
+    // className={cn({ "rounded-b-none": value.length || filters.length > 0 })}
     >
       <Command
         label="Search"

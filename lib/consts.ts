@@ -12,3 +12,5 @@ export const DateRanges = {
   Quarterly: "Quarterly",
   Yearly: "Yearly",
 } as const;
+
+export const MAX_APPLICATION_PAGE_SIZE = 10;

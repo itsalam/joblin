@@ -234,7 +234,7 @@ const getAssistantCompletion = async (message: ParsedEmailContent) => {
 
 ### **Step 3: Classify Application Status**
 - Assign one of the following **status labels**:
-  - **ACK** → Acknowledgment of application, usually an automated message.
+  - **ACK'D** → Acknowledgment of application, usually an automated message.
   - **PROCEED** → Next step discussion, usually a non-automated message.
   - **INTERVIEW** → Explicitly requested an interview.
   - **OFFER** → Extends a job offer.

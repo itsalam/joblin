@@ -1,3 +1,4 @@
+import { useDashboard } from "@/components/providers/DashboardProvider";
 import { ApplicationBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EditInput } from "@/components/ui/edit-input";
 import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import TimelineBreadCrumbs from "@/components/ui/timeline";
 import {
   Tooltip,
@@ -108,6 +110,7 @@ export const TableRow = ({
   const {
     data: applicationRecord,
     mutate,
+    isLoading,
     isValidating,
   } = useSWR(
     `/api/applications/${applicationRecordFallback.id}`,
@@ -130,16 +133,21 @@ export const TableRow = ({
     []
   );
   const editDataRef = useRef<Partial<GroupRecord>>({});
+  const [isUpdating, setIsUpdating] = useState(false);
   const [expand, setExpand] = useState<boolean>(false);
   const [edit, setEdit] = useState(false);
   const ghostNode = useRef<HTMLElement | null>(null);
   const rootRef = useRef<Root>(null);
   const rowGroupRef = useRef<HTMLTableSectionElement>(null);
+  const { setEmails, setApplications } = useDashboard();
 
   const displayData: GroupRecord = {
     ...application,
     ...(edit ? editDataRef.current : {}),
   };
+
+  console.log("Display Data", displayData);
+  console.log({ applicationRecord });
 
   const { draggedData, isDragging, draggedApplications } =
     useApplicationDragContext();
@@ -222,12 +230,23 @@ export const TableRow = ({
       last_email_subject,
       last_status,
       last_updated,
-      email_ids: Object.entries(displayData.email_ids).reduce(
-        (acc, [key, value]) => {
+      email_ids: Object.values(ApplicationStatus).reduce(
+        (acc, key) => {
+          console.log(key);
+          console.log(groupRecord.email_ids);
+          console.log(displayData.email_ids);
           const newValues =
             groupRecord.email_ids[key as ApplicationStatus] || [];
-          const appStatus = Array.from(new Set([...newValues, ...value]));
-          acc[key as ApplicationStatus] = appStatus;
+          const currentValues =
+            displayData.email_ids[key as ApplicationStatus] || [];
+          const appStatus = Array.from(
+            new Set([...newValues, ...currentValues])
+          );
+          console.log("appStatus", appStatus);
+          console.log(newValues, currentValues);
+          if (appStatus.length) {
+            acc[key as ApplicationStatus] = appStatus;
+          }
           return acc;
         },
         {} as Group<ApplicationStatus, string[]>
@@ -277,15 +296,9 @@ export const TableRow = ({
       !rowGroupRef.current ||
       rowGroupRef.current?.contains(related) !== toggleValue
     ) {
-      //related not found and toggle = false === dragging out
-      //related found and toggle = true === dragging in
       return;
     }
     if (!draggedData.current) return;
-    // const dragApp: GroupRecord = draggedData.current as GroupRecord;
-    // if (dragApp.id !== application.id && expand !== toggleValue) {
-    //   setExpand(toggleValue);
-    // }
   };
 
   const onDragEnter = debounce(toggleDrag(true), 100, {
@@ -296,7 +309,7 @@ export const TableRow = ({
     immediate: true,
   });
 
-  const submitChanges = debounce(async (
+  const submitChanges = async (
     changes: Partial<GroupRecord>,
     finalize?: boolean
   ) => {
@@ -304,17 +317,37 @@ export const TableRow = ({
       ...changes,
       id: editDataRef.current.id || application.id,
     };
-    if (!finalize) {
-      delete submittingChanges.email_ids;
-    }
-    let optimistic = { ...application, ...submittingChanges };
+    console.log("Submitting changes", submittingChanges);
+    editDataRef.current = {
+      ...editDataRef.current,
+      ...submittingChanges,
+    };
+    return debouncedSubmitChanges(!!finalize, changes);
+  };
 
-    return await mutate(
+  const debouncedSubmitChanges = debounce(async (
+    finalize: boolean,
+    changes: Partial<GroupRecord>
+  ) => {
+    const fullChanges = {
+      ...editDataRef.current,
+      ...changes,
+    };
+    if (Object.values(fullChanges).length === 0) {
+      return;
+    }
+    let optimistic = {
+      ...application,
+      ...fullChanges,
+    };
+
+    setIsUpdating(true);
+    return mutate(
       async (currentData) => {
         const res = await fetch("/api/applications", {
           method: "POST",
           body: JSON.stringify({
-            application: submittingChanges,
+            application: fullChanges,
             deletedApplications: finalize
               ? draggedApplications.map((a) => a.id)
               : null,
@@ -324,15 +357,50 @@ export const TableRow = ({
         if (!res.ok) throw new Error("Failed to update: " + res.statusText);
 
         const { data: updatedFields } = await res.json();
-        return {
+
+        const resultRecord = {
           ...currentData,
           ...updatedFields,
         } as GroupRecord;
+
+        if (draggedApplications && finalize) {
+          setApplications((prev) => {
+            return [
+              ...prev.filter((app) => {
+                return !draggedApplications.find((d) => d.id === app.id);
+              }),
+            ];
+          });
+        }
+        if (resultRecord.email_ids) {
+          const emailIdsArray: string[] = Object.entries(
+            resultRecord.email_ids
+          ).reduce((acc, [_, ids]) => {
+            return acc.concat(ids);
+          }, [] as string[]);
+          setEmails((prev) => {
+            prev.forEach((email) => {
+              if (emailIdsArray.includes(email.id)) {
+                console.log("Updating email group_id", email.id, resultRecord);
+                email.group_id = resultRecord.id;
+                email.company_title = resultRecord.company_title;
+                email.job_title = resultRecord.job_title;
+              }
+            });
+            return [...prev];
+          });
+        }
+
+        setApplication(resultRecord);
+
+        setIsUpdating(false);
+        return resultRecord;
       },
       {
         optimisticData: optimistic,
         rollbackOnError: true,
         revalidate: false, // prevents extra GET fetch
+        populateCache: true,
       }
     );
   }, 1000);
@@ -355,6 +423,74 @@ export const TableRow = ({
     () => <PreviewBody application={application} avatar={Avatar} />,
     [application]
   );
+
+  const Timeline = useCallback(() => {
+    return (
+      <div
+        className={cn(
+          "flex flex-col flex-1 gap-2.5 h-fit py-5",
+          mergingApplications.length > 0 ? "pt-1" : "pt-5"
+        )}
+      >
+        <TimelineBreadCrumbs
+          expand
+          applicationData={displayData}
+          editMode={edit}
+        />
+        <AnimatePresence>
+          {edit && (
+            <motion.div
+              layout={"position"}
+              key={`edit-${application.id}`}
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className={cn(
+                "flex gap-2 justify-start"
+              )}
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  submitChanges(editDataRef.current, true)
+                    .then(() => {
+                      setMergingApplications([]);
+                      editDataRef.current = {};
+                      setApplication({ ...application, ...displayData });
+                      setEdit(false);
+                    })
+                    .catch((err) => {
+                      console.error("Failed to submit changes", err);
+                    });
+                }}
+              >
+                Save
+                {isUpdating || isValidating || isLoading ? (
+                  <Spinner />
+                ) : (
+                  <Check />
+                )}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setMergingApplications([]);
+                  setEdit(false);
+                  editDataRef.current = {};
+                  submitChanges(applicationRecordFallback);
+                }}
+              >
+                Cancel Edit
+                <Undo2 />
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }, [edit, displayData]);
 
   return (
     <motion.tbody
@@ -383,8 +519,8 @@ export const TableRow = ({
         className={`text-sm ${index % 2 ? "bg-slate-100" : "bg-white"}`}
         onClick={toggleExpand}
       >
-        <td className="px-3 w-12 text-lg">
-          <div className="flex flex-col items-center justify-center gap-2">
+        <td className="pl-3 flex items-center gap-3 relative w-min">
+          <div className="flex flex-col items-center justify-center gap-2 w-6">
             <button
               className="hover:text-violet-600"
               onClick={() => shift(application.id, "up")}
@@ -398,8 +534,6 @@ export const TableRow = ({
               <ChevronDown />
             </button>
           </div>
-        </td>
-        <td className="flex items-center gap-3 relative shrink w-min">
           <div className="relative my-5 ">
             {Avatar}
             <AnimatePresence>
@@ -453,21 +587,23 @@ export const TableRow = ({
             />
           </div>
         </td>
-        <td className="py-5 p-3">
+        <td className="py-5 pr-3">
           {displayData.last_status && (
             <ApplicationBadge status={displayData.last_status} />
           )}
         </td>
 
-        <td className="py-5 text-ellipsis">
-          <p className="block font-medium">{displayData.last_email_subject}</p>
-          <p className="block text-xs text-slate-500">
-            {displayData.last_updated
-              ? timeAgo(displayData.last_updated)
-              : null}
-          </p>
-        </td>
-        <td className="py-5 px-3">
+        <td className="py-5 pr-5 text-ellipsis flex flex-grow items-center justify-between text-start font-medium gap-5">
+          <div className="">
+            <p className="block font-medium">
+              {displayData.last_email_subject}
+            </p>
+            <p className="block text-xs text-slate-500">
+              {displayData.last_updated
+                ? timeAgo(displayData.last_updated)
+                : null}
+            </p>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -478,7 +614,10 @@ export const TableRow = ({
                 <Ellipsis />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="z-80 w-40 border-zinc-200 dark:border-zinc-800">
+            <DropdownMenuContent
+              className="z-80 w-40 border-zinc-200 dark:border-zinc-800"
+              align="end"
+            >
               <DropdownMenuGroup>
                 <DropdownMenuItem
                   onClick={(e) => {
@@ -521,7 +660,7 @@ export const TableRow = ({
         layout="preserve-aspect"
         className={`${index % 2 ? "bg-slate-100" : "bg-white"} ${expand ? "border-t-1" : ""}`}
       >
-        <motion.td colSpan={6}>
+        <motion.td colSpan={4}>
           <motion.div
             initial={{ maxHeight: 0 }}
             animate={{ maxHeight: expand ? 280 : 0 }}
@@ -565,63 +704,7 @@ export const TableRow = ({
                 </div>
               </motion.div>
             )}
-            <div
-              className={cn(
-                "flex flex-col flex-1 gap-2.5 h-fit py-5",
-                mergingApplications.length > 0 ? "pt-1" : "pt-5"
-              )}
-            >
-              <TimelineBreadCrumbs
-                expand={expand}
-                applicationData={displayData}
-                editMode={edit}
-              />
-              <AnimatePresence>
-                {edit && (
-                  <motion.div
-                    layout={"position"}
-                    key={`edit-${application.id}`}
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className={cn(
-                      "flex gap-2 justify-start"
-                    )}
-                  >
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        submitChanges(editDataRef.current, true)?.then((
-                          record
-                        ) => {
-                          setMergingApplications([]);
-                          record && setApplication(record);
-                          editDataRef.current = {};
-                          setEdit(false);
-                        });
-                      }}
-                    >
-                      Save
-                      <Check />
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => {
-                        setMergingApplications([]);
-                        setEdit(false);
-                        editDataRef.current = {};
-                        submitChanges(applicationRecordFallback);
-                      }}
-                    >
-                      Cancel Edit
-                      <Undo2 />
-                    </Button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            <Timeline />
           </motion.div>
         </motion.td>
       </motion.tr>

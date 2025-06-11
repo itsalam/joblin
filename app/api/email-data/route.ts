@@ -23,13 +23,6 @@ async function handler(req: Request) {
 
   const rawEmail = await sesMailContent.Body!.transformToString();
   const parsedEmail = await extractEmailDataFromString(rawEmail);
-  console.log(
-    "https://" +
-      Resource["cdn_distribution"].distributionDomainName +
-      "/emails/" +
-      messageId +
-      "/html"
-  );
   let html;
   try {
     html = await fetch(

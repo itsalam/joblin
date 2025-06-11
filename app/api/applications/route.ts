@@ -42,6 +42,32 @@ async function postHandler(req: Request) {
     })
   );
 
+  if (response.Attributes && application.email_ids) {
+    const allEmails = Object.values(application.email_ids).flatMap((emails) => {
+      return emails;
+    });
+    const updateEmails = allEmails.map((email) => {
+      return docClient.send(
+        new UpdateCommand({
+          TableName: Resource["categorized-emails-table"].name,
+          Key: {
+            id: email,
+          },
+          UpdateExpression: `SET #group_id = :group_id`,
+          ExpressionAttributeNames: {
+            "#group_id": "group_id",
+          },
+          ExpressionAttributeValues: {
+            ":group_id": id,
+          },
+          ReturnValues: "ALL_NEW", // optionally return the updated record
+        })
+      );
+    });
+
+    await Promise.all(updateEmails);
+  }
+
   if (deletedApplications && deletedApplications.length > 0) {
     const deleteRequests = deletedApplications.map((id) => ({
       DeleteRequest: {

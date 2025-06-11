@@ -12,33 +12,39 @@ import {
 } from "@/components/ui/resizable";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn, timeAgo } from "@/lib/utils";
-import { ParsedEmailContent } from "@/types";
-import { Archive, ChevronLeft, ChevronRight } from "lucide-react";
-import { HTMLProps, useCallback, useEffect, useRef, useState } from "react";
+import { GroupRecord, ParsedEmailContent } from "@/types";
+import { ChevronLeft, ChevronRight, PencilIcon } from "lucide-react";
+import {
+  ComponentProps,
+  HTMLProps,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { EditApplicationBadge } from "../EditApplicationBadge";
+import { EditPopoverInput } from "../EditPopoverInput";
 import { LogoAvatar } from "../LogoAvatar";
 
-type RowObj = {
-  checked?: string;
-  email: string;
-  provider: string;
-  created: string;
-  lastsigned: string;
-  uuid: string;
-  menu?: string;
-};
-
-function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
-  const { setActiveEmail, activeEmail } = useDashboard();
-  const { emails, isFetching } = props;
+function Emails(props: { emails: CategorizedEmail[] }) {
+  const { setActiveEmail, activeEmail, isFetching } = useDashboard();
+  const { emails } = props;
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(15);
   const emailContainerRef = useRef<HTMLDivElement>(null);
   const hasFetched = useRef(false);
 
   useEffect(() => {
-    hasFetched.current = hasFetched.current || isFetching;
-    if (isFetching) {
+    hasFetched.current = hasFetched.current || isFetching["emails"];
+    if (isFetching["emails"]) {
       setPage(0);
     }
   }, [isFetching]);
@@ -96,16 +102,16 @@ function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
 
   return (
     <Card
-      className={"h-full w-full border-zinc-200 p-0 dark:border-zinc-800"}
+      className={"w-full border-zinc-200 p-0 dark:border-zinc-800 h-[540px]"}
       id="email-card"
     >
       <ResizablePanelGroup
         direction="horizontal"
-        className="flex overflow-hidden max-h-[600px]"
+        className="flex overflow-hidden max-h-[540px]"
       >
         <ResizablePanel defaultSize={40} className="flex flex-col relative">
           <div className="flex items-center justify-between">
-            {(isFetching || !hasFetched.current) && (
+            {(isFetching["emails"] || !hasFetched.current) && (
               <Spinner className="ml-3" />
             )}
             <div className="flex items-center justify-end ml-auto">
@@ -139,7 +145,10 @@ function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
             role="group"
             className={cn(
               "flex-1 p-3 transition-opacity overflow-y-scroll",
-              { "opacity-25 pointer-none:": isFetching || !hasFetched.current }
+              {
+                "opacity-25 pointer-none:":
+                  isFetching["emails"] || !hasFetched.current,
+              }
             )}
           >
             <div className="flex flex-col gap-3" ref={emailContainerRef}>
@@ -161,18 +170,6 @@ function Emails(props: { emails: CategorizedEmail[]; isFetching: boolean }) {
         </ResizablePanel>
         <ResizableHandle />
         <ResizablePanel className="flex flex-col relative">
-          <div className="flex items-center gap-1">
-            <Button variant="ghost">
-              <Archive />
-            </Button>
-            <Button variant="ghost">
-              <Archive />
-            </Button>
-            <Button variant="ghost">
-              <Archive />
-            </Button>
-          </div>
-          <Separator orientation="horizontal" />
           {activeEmail && <EmailDetailPanel email={activeEmail} />}
           <Separator orientation="horizontal" />
           <div className="mt-2 flex h-12 w-full items-center justify-between px-5">
@@ -208,9 +205,13 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
   const [emailContent, setEmailContent] = useState<ParsedEmailContent | null>(
     null
   );
+
+  const [edit, setEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const baseURL = "/api/email-data";
+
+  console.log("EmailDetailPanel", email);
 
   useEffect(() => {
     const fetchEmailContent = async () => {
@@ -272,66 +273,175 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
     [email]
   );
 
+  type GroupRecordSubdata = Pick<
+    GroupRecord,
+    "company_title" | "job_title" | "id"
+  >;
+
+  const groupRecordData = {
+    company_title: email.company_title,
+    job_title: email.job_title,
+    id: email.group_id,
+  };
+
+  const suggestApplications = useCallback(
+    async (searchTerm?: string) => {
+      if (!email.company_title) return [];
+      const searchParams = new URLSearchParams({
+        application_title: email.job_title,
+        company_title: email.company_title,
+      });
+      if (searchTerm) {
+        searchParams.set("search_term", searchTerm);
+      }
+      const url = `/api/applications/suggest?${searchParams.toString()}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        // TODO: Make a toast for this?
+        return [];
+      }
+      const data = await response.json();
+      const applications: GroupRecordSubdata[] = data.applications || [];
+
+      return applications;
+    },
+    [email.company_title, email.job_title]
+  );
+
   return (
-    <div className="flex flex-col h-full flex-1 overflow-hidden" id={email.id}>
-      <div className="flex gap-3 items-center p-5">
-        <Avatar />
-
-        <div className="flex items-center gap-2 h-full relative justify-between w-full">
-          <div className="flex flex-col gap-0.5 w-full">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-zinc-950 dark:text-white">
-                {email.company_title}
-
-                <span className="font-normal text-xs text-zinc-600 dark:text-white">
-                  {` <${email.from}>`}
-                </span>
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <p className="text-xs text-zinc-950 dark:text-white">
-                {email.subject}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <p className="text-xs text-zinc-600 dark:text-white">
-                {`${email.job_title}`}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col items-end justify-around w-min h-full">
-            <p className="text-xs font-medium text-zinc-950 dark:text-white text-nowrap">
-              {timeAgo(email.sent_on)}
-            </p>
-            <ApplicationBadge
-              status={email.application_status}
-              className="text-xs"
-            />
-          </div>
+    <>
+      <TooltipProvider>
+        <div className="flex items-center gap-1">
+          <TooltipButton
+            variant="ghost"
+            content="Edit"
+            onClick={() => setEdit((edit) => !edit)}
+          >
+            <PencilIcon />
+          </TooltipButton>
         </div>
-      </div>
-
+      </TooltipProvider>
       <Separator orientation="horizontal" />
-      <div className="flex flex-col items-start gap-3 p-1 flex-1 overflow-y-scroll">
-        {emailContent?.html ? (
-          <iframe
-            ref={iframeRef}
-            title="Email Preview"
-            sandbox="allow-same-origin"
-            className="email-content flex flex-col justify-center align-middle w-full h-full gap-0.5 text-xs text-zinc-600 dark:text-white [&>p]:px-5 [&>p]:p-1 [&>p]:first:pt-5 [&>p]:last:pb-5"
-            style={{}}
-          />
-        ) : (
-          <div className="email-content flex flex-col gap-0.5 p-5 text-xs text-zinc-600 dark:text-white w-full">
-            {emailContent?.text}
+      <div
+        className="flex flex-col h-full flex-1 overflow-hidden"
+        id={email.id}
+      >
+        <div className="flex gap-3 items-center p-5">
+          <Avatar />
+
+          <div className="flex items-center gap-2 h-full relative justify-between w-full">
+            <div className="flex flex-col gap-0.5 w-full">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-zinc-950 dark:text-white">
+                  {email.company_title}
+                  <span className="font-normal text-xs text-zinc-600 dark:text-white">
+                    {` <${email.from}>`}
+                  </span>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-zinc-950 dark:text-white">
+                  {email.subject}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <EditPopoverInput<GroupRecordSubdata>
+                  initialValue={groupRecordData}
+                  edit={edit}
+                  key={groupRecordData.id}
+                  placeholder="Untitled Application"
+                  className="text-xs text-zinc-600 dark:text-white"
+                  fetchItems={suggestApplications}
+                  extractSearchValue={(value) => value.job_title || ""}
+                  renderItem={(value) => {
+                    const { id, company_title, job_title } = value;
+                    return {
+                      value: value,
+                      children: (
+                        <div className="flex gap-2 items-center py-1">
+                          <LogoAvatar company={company_title} size={40} />
+                          <div className="flex flex-col w-full">
+                            <div className="flex flex-col items-start font-semibold justify-between">
+                              <p className="text-xs text-zinc-950 dark:text-white">
+                                {company_title}
+                              </p>
+                              <p
+                                className={cn(
+                                  "text-xs font-medium text-zinc-950", // Typography
+                                  "dark:text-white",
+                                  !!!job_title.length && "text-zinc-400"
+                                )}
+                              >
+                                {job_title.length ? job_title : "-"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ),
+                    };
+                  }}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col items-end justify-around w-min h-full">
+              <p className="text-xs font-medium text-zinc-950 dark:text-white text-nowrap">
+                {timeAgo(email.sent_on)}
+              </p>
+              <EditApplicationBadge
+                status={email.application_status}
+                className="text-xs"
+                edit={edit}
+              />
+            </div>
           </div>
-        )}
-        <div className="flex gap-1">
-          {/* <Badge variant="outline">{email.application_status.toLocaleUpperCase().slice(0, 1).concat(email.application_status.slice(1).toLocaleLowerCase())}</Badge> */}
+        </div>
+
+        <Separator orientation="horizontal" />
+        <div className="flex flex-col items-start gap-3 p-1 flex-1 overflow-y-scroll">
+          {emailContent?.html ? (
+            <iframe
+              ref={iframeRef}
+              title="Email Preview"
+              sandbox="allow-same-origin"
+              className="email-content flex flex-col justify-center align-middle w-full h-full gap-0.5 text-xs text-zinc-600 dark:text-white [&>p]:px-5 [&>p]:p-1 [&>p]:first:pt-5 [&>p]:last:pb-5"
+              style={{}}
+            />
+          ) : (
+            <div className="email-content flex flex-col gap-0.5 p-5 text-xs text-zinc-600 dark:text-white w-full">
+              {emailContent?.text}
+            </div>
+          )}
+          <div className="flex gap-1">
+            {/* <Badge variant="outline">{email.application_status.toLocaleUpperCase().slice(0, 1).concat(email.application_status.slice(1).toLocaleLowerCase())}</Badge> */}
+          </div>
         </div>
       </div>
-    </div>
+    </>
+  );
+};
+
+const TooltipButton = ({
+  content,
+  ...props
+}: ComponentProps<typeof Button> & { content: ReactNode }) => {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          className="flex items-center justify-center rounded-lg bg-transparent p-3 text-lg text-zinc-950 transition duration-200 hover:bg-transparent active:bg-transparent dark:text-white dark:hover:bg-transparent dark:active:bg-transparent"
+          {...props}
+        />
+      </TooltipTrigger>
+      <TooltipContent
+        side="top"
+        className="w-fit rounded-lg bg-white text-zinc-950 dark:bg-zinc-800 dark:text-white border-1"
+        sideOffset={5}
+      >
+        {content}
+      </TooltipContent>
+    </Tooltip>
   );
 };
 

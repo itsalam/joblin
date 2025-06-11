@@ -1,12 +1,15 @@
 "use client";
 
-import { setEmailItem } from "@/lib/clientCache";
+import { composeApplications } from "@/app/(actions)/composeApplications";
+import { composeEmails } from "@/app/(actions)/compostEmails";
+import { useParams } from "@/lib/hooks";
 import {
   ApplicationStatus,
   DashboardParams,
   FilterType,
   GroupRecord,
 } from "@/types";
+import Cookies from "js-cookie";
 import React, {
   createContext,
   ReactNode,
@@ -15,10 +18,9 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { composeDashboardData } from "../../app/(actions)/composeDashboard";
 import { createSafeId } from "../helpers";
 
-export type FetchedRecords = keyof FetchData;
+export type FetchedRecords = keyof Omit<FetchData, "maxApplications">;
 
 interface DashboardContextValue {
   isFetching: Record<FetchedRecords, boolean>;
@@ -34,6 +36,7 @@ interface DashboardContextValue {
   focusToEmail: (emailId: string) => void;
   activeEmail: CategorizedEmail | null;
   setActiveEmail: React.Dispatch<React.SetStateAction<CategorizedEmail | null>>;
+  maxApplications: React.RefObject<number>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | undefined>(
@@ -46,6 +49,7 @@ export type FetchData = {
   chartData: ApplicationData;
   emails: CategorizedEmail[];
   applications?: GroupRecord[];
+  maxApplications?: number;
 };
 
 export const DashboardProvider: React.FC<{
@@ -65,8 +69,26 @@ export const DashboardProvider: React.FC<{
     applications: false,
     chartData: false,
   });
+  const maxApplications = useRef<number>(fetchData.maxApplications || 1);
   const [activeEmail, setActiveEmail] = useState<CategorizedEmail | null>(null);
   const [params, setParams] = useState<DashboardParams>(initalDashboardParams);
+  const [chartParams, setChartParams] = useParams<DashboardParams>(params, [
+    "searchTerm",
+    "filters",
+    "absolute",
+    "dateKey",
+    "displayedStatistics",
+  ]);
+  const [emailParams, setEmailParams] = useParams<DashboardParams>(params, [
+    "searchTerm",
+    "filters",
+    "absolute",
+    "dateKey",
+  ]);
+  const [applicationParams, setApplicationParams] = useParams<DashboardParams>(
+    params,
+    ["searchTerm", "filters", "absolute", "dateKey", "applicationPageIndex"]
+  );
 
   const latestData = useRef<FetchData>({ chartData, emails });
   const hasMounted = useRef(false);
@@ -86,9 +108,6 @@ export const DashboardProvider: React.FC<{
         const emailElement = emailCardElement.querySelector(`#${id}`);
         if (emailElement) {
           const parent = emailElement.closest("[role=group");
-          console.log(
-            parent?.offsetTop ?? 0 - (emailElement as HTMLElement).offsetTop
-          );
           parent?.scrollTo({
             top:
               Math.abs(
@@ -97,15 +116,6 @@ export const DashboardProvider: React.FC<{
             behavior: "smooth",
           });
         }
-        // setTimeout(() => {
-        //   console.log(emailCardElement.querySelector(`#${id}`));
-
-        //   emailCardElement.querySelector(`#${id}`)?.scrollIntoView({
-        //     behavior: "smooth",
-        //     block: "center",
-        //     inline: "nearest",
-        //   });
-        // }, 0);
       }
     } else {
       setParams((prevParams) => {
@@ -129,29 +139,50 @@ export const DashboardProvider: React.FC<{
   };
 
   useEffect(() => {
+    Cookies.set(
+      "dashboard-params",
+      JSON.stringify({
+        displayedStatistics: params.displayedStatistics,
+        dateKey: params.dateKey,
+        absolute: params.absolute,
+      }),
+      {
+        path: "/",
+        expires: 30, // 30 days
+        ...(process.env.NODE_ENV === "development"
+          ? { secure: false, sameSite: "Lax" }
+          : { secure: true }),
+      }
+    );
+  }, [params]);
+
+  useEffect(() => {
     if (!hasMounted.current) {
       hasMounted.current = true;
       return;
     }
 
-    setIsFetching({
-      emails: true,
-      applications: true,
-      chartData: true,
-    });
-    composeDashboardData(params).then((data) => {
-      setIsFetching({
-        emails: !!!data.emails,
-        applications: !!!data.applications,
-        chartData: !!!data.chartData,
-      });
-      latestData.current = data;
+    setIsFetching((prev) => ({ ...prev, chartData: true, emails: true }));
+    composeEmails(chartParams).then((data) => {
+      setIsFetching((prev) => ({ ...prev, chartData: false, emails: false }));
+      setChartData(data.chartData);
       setEmails(data.emails);
-      data.emails.forEach((email) => {
-        setEmailItem(email.id, email);
-      });
     });
-  }, [params]);
+  }, [chartParams, emailParams]);
+
+  useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
+
+    setIsFetching((prev) => ({ ...prev, applications: true }));
+    composeApplications(applicationParams).then((data) => {
+      setIsFetching((prev) => ({ ...prev, applications: false }));
+      setApplications(data.records || []);
+      maxApplications.current = data.maxApplications || 1;
+    });
+  }, [applicationParams]);
 
   return (
     <DashboardContext.Provider
@@ -169,6 +200,7 @@ export const DashboardProvider: React.FC<{
         focusToEmail,
         activeEmail,
         setActiveEmail,
+        maxApplications,
       }}
     >
       {children}

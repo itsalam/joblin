@@ -95,4 +95,5 @@ export type DashboardParams = {
   searchTerm?: string;
   filters?: Filter[];
   displayedStatistics?: StatisticKey[];
+  applicationPageIndex?: number;
 };

@@ -1,28 +1,19 @@
-import { authOptions } from "@/lib/auth";
 import { openSearchClient } from "@/lib/clients";
 import { DateRange, DateRanges } from "@/lib/consts";
+import { DashboardParams, FilterType, OpenSearchRecord } from "@/types";
 import {
-  ApplicationStatus,
-  DashboardParams,
-  FilterType,
-  GroupRecord,
-  OpenSearchRecord,
-} from "@/types";
-import {
-  BatchGetItemCommand,
-  BatchGetItemInput,
   DynamoDBClient,
   QueryCommand,
   QueryCommandInput,
 } from "@aws-sdk/client-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
-import { QueryContainer } from "@opensearch-project/opensearch/api/_types/_common.query_dsl.js";
+import {
+  MatchQuery,
+  QueryContainer,
+} from "@opensearch-project/opensearch/api/_types/_common.query_dsl.js";
 import { Search_RequestBody } from "@opensearch-project/opensearch/api/index.js";
-import { ResponseError } from "@opensearch-project/opensearch/lib/errors.js";
-import { getServerSession } from "next-auth";
 import { cache } from "react";
 import { Resource } from "sst";
-import { FetchData } from "../../components/providers/DashboardProvider";
 
 const dbClient = new DynamoDBClient({ region: "us-east-1" });
 
@@ -57,7 +48,7 @@ export const fetchRelevantEmails = async (
   let queryCommand: QueryCommandInput = {
     TableName: Resource["categorized-emails-table"].name,
     IndexName: applicationId ? "groupIdIndex" : "userEmails",
-    KeyConditionExpression: `user_name = :user_name${applicationId ? "AND #group_id = :group_id" : ""} `,
+    KeyConditionExpression: `user_name = :user_name${applicationId ? " AND group_id = :group_id" : ""} `,
     ExpressionAttributeValues,
   };
 
@@ -81,6 +72,8 @@ export const fetchRelevantEmails = async (
     };
   }
 
+  console.log("Querying emails with params:", queryCommand);
+
   const results = await dbClient.send(new QueryCommand(queryCommand), {}).then(
     (res) => {
       return (
@@ -95,74 +88,56 @@ export const fetchRelevantEmails = async (
   return payload;
 };
 
-export const getFormattedEmails = cache(async ({
-  dateKey = DateRanges.Monthly,
-  absolute,
-  searchTerm,
-  filters,
-}: DashboardParams): Promise<FetchData> => {
-  const session = await getServerSession(authOptions);
+type SearchQueries = Partial<Record<keyof OpenSearchRecord, MatchQuery>>;
 
-  const dates = getIntervalDates(dateKey, absolute);
-  const buckets: Record<
-    string,
-    Partial<Record<ApplicationStatus, number | null>> & { rawDate: Date }
-  > = dates
-    .map((date) => date.toISOString().split("T")[0])
-    .reduce((curr, timestamp) => ({ ...curr, [timestamp]: {} }), {});
+export const fetchSuggestedApplications = async (
+  username: string,
+  mustQueries: SearchQueries[] = [],
+  shouldQueries: SearchQueries[] = [],
+  size: number = 500
+) => {
+  const index = `user-${username}`;
+  const client = await openSearchClient();
 
-  const seenStatuses = new Set<ApplicationStatus>();
-  let res;
-  try {
-    res = await searchFromOS(session?.user?.username!, {
-      filters: filters ?? [],
-      searchTerm,
-      dateKey,
-      absolute: !!absolute,
+  const flattenQueries = (queries: Record<string, MatchQuery>[]) => {
+    return queries.flatMap((record) => {
+      return Object.entries(record).flatMap((query) => {
+        const [field, matchQuery] = query;
+        return {
+          match: {
+            [field]: matchQuery,
+          },
+        };
+      });
     });
-  } catch (e) {
-    console.error({ e, ...((e as ResponseError).meta ?? {}) });
-  }
+  };
 
-  const hits = res?.hits?.hits ?? [];
-  const hitItems: CategorizedEmail[] = hits.map((hit) => {
-    return hit._source as CategorizeEmailItem;
-  });
+  const formattedMustQueries: QueryContainer[] = flattenQueries(mustQueries);
 
-  const emails = hitItems;
-  emails.sort((a, b) => {
-    return new Date(b.sent_on).getTime() - new Date(a.sent_on).getTime();
-  });
-  emails.forEach((item) => {
-    const bucketDate = groupByDateRange(dateKey, item, dates); // YYYY-MM-DD
-    const bucketKey = bucketDate.toISOString().split("T")[0];
-    const status = item.application_status as ApplicationStatus;
-    seenStatuses.add(status);
-    if (!buckets[bucketKey]) {
-      return;
-    }
-    if (!buckets[bucketKey]?.rawDate) {
-      buckets[bucketKey].rawDate = bucketDate;
-    }
-    buckets[bucketKey][status] =
-      1 +
-      (buckets[bucketKey][item.application_status as ApplicationStatus] ?? 0);
-  });
+  const formattedShouldQueries: QueryContainer[] =
+    flattenQueries(shouldQueries);
 
-  const chartData = Object.entries(buckets).map(([date, statuses], i) => ({
-    date,
-    rawDate: statuses.rawDate,
-    ...Array.from(seenStatuses).reduce(
-      (acc, seenStatus) => {
-        acc[seenStatus] = statuses[seenStatus] ?? 0;
-        return acc;
+  const body: Search_RequestBody = {
+    size,
+    track_total_hits: true,
+    _source: {
+      excludes: ["vector_embedding", "text"],
+    },
+    query: {
+      bool: {
+        must: [...formattedMustQueries].filter(Boolean) as QueryContainer[],
+        should: [...formattedShouldQueries].filter(Boolean) as QueryContainer[],
       },
-      {} as Record<ApplicationStatus, number | null>
-    ),
-  }));
+    },
+  };
 
-  return { emails, chartData };
-});
+  const searchResp = await client.search({
+    index,
+    body,
+  });
+
+  return searchResp.body;
+};
 
 const filterToFieldMap: Record<FilterType, keyof OpenSearchRecord> = {
   [FilterType.Id]: "id",
@@ -445,35 +420,4 @@ export const groupByDateRange = (
         date.getTime() + intervalLength * MS_PER_DAY > sentOn.getTime()
     ) ?? new Date()
   );
-};
-
-export const getApplicationData = async (params: DashboardParams) => {
-  const dbClient = new DynamoDBClient({ region: "us-east-1" });
-  let results: GroupRecord[] = [];
-
-  const { emails } = await getFormattedEmails(params);
-
-  const groupIds = Array.from(new Set(emails.map((emails) => emails.group_id)));
-  let queryCommand: BatchGetItemInput = {
-    RequestItems: {
-      [Resource["grouped-applications-table"].name]: {
-        Keys: groupIds.map((id) => ({
-          id: { S: id }, // your sort key or unique key
-        })),
-      },
-    },
-  };
-  if (groupIds.length) {
-    await dbClient.send(new BatchGetItemCommand(queryCommand)).then(
-      (res) => {
-        const entries = Object.values(res.Responses ?? {})[0] ?? [];
-        results = entries.map((entry) =>
-          typeof entry === "string"
-            ? entry
-            : (unmarshall(entry) as GroupRecord));
-      },
-      (rej) => console.error({ rej })
-    );
-  }
-  return results;
 };

@@ -23,10 +23,7 @@ export default function Main() {
                 isFetching={isFetching["chartData"]}
                 {...latestData.current}
               />
-              <Emails
-                isFetching={isFetching["emails"]}
-                emails={latestData.current.emails}
-              />
+              <Emails emails={latestData.current.emails} />
               <ApplicationList />
             </div>
           </div>

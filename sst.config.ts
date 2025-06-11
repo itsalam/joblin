@@ -38,7 +38,7 @@ export default $config({
       .then((id) => id.accountId);
 
     // Create a Route 53 Hosted Zone
-    const { sesDomainIdentity } = await createSimpleEmailServiceStack(domain)
+    const { sesDomainIdentity } = await createSimpleEmailServiceStack(domain);
 
     // S3
     sst.Linkable.wrap(aws.s3.BucketV2, (bucket) => ({
@@ -69,7 +69,9 @@ export default $config({
       ],
     }));
 
-    const { cdnAssetBucket, cdnAssetDistribution } = (await import("./services/cloudfront").then((m) => m.default))(currentAccountId);
+    const { cdnAssetBucket, cdnAssetDistribution } = (
+      await import("./services/cloudfront").then((m) => m.default)
+    )(currentAccountId);
 
     const emailArchiveBucket = new aws.s3.BucketV2("email-archive-s3", {
       bucket: `email-archive-${currentAccountId}`, // Unique name
@@ -146,36 +148,50 @@ export default $config({
       },
     });
 
-    const { userPool, userPoolEndpoint } = await UserRegistrationService([emailArchiveBucket, openApiQueue, usersTable, stageConsts])
-
-    const { opensearch, syncOpenSearch } = await createOsStack({accountId: currentAccountId, dynamoTable: categorizedEmailsTable, syncOpenSearchLinks: [
-      emailArchiveBucket,
-      openApiKey,
-      usersTable,
-      categorizedEmailsTable,
-      stageConsts,
-      userPoolEndpoint,
-    ]});
-
-    const { categorizeEmailLambda, vpc } = await EmailCategorizationService({link: [
+    const { userPool, userPoolEndpoint } = await UserRegistrationService([
       emailArchiveBucket,
       openApiQueue,
-      groupingQueue,
-      categorizedEmailsTable,
-      opensearch,
-      openApiKey,
-      stageConsts,
       usersTable,
-    ], accountId: currentAccountId, s3BucketArn: emailArchiveBucket.arn});
+      stageConsts,
+    ]);
+
+    const { opensearch, syncOpenSearch } = await createOsStack({
+      accountId: currentAccountId,
+      dynamoTable: categorizedEmailsTable,
+      syncOpenSearchLinks: [
+        emailArchiveBucket,
+        openApiKey,
+        usersTable,
+        categorizedEmailsTable,
+        stageConsts,
+        userPoolEndpoint,
+      ],
+    });
+
+    const { categorizeEmailLambda, vpc } = await EmailCategorizationService({
+      link: [
+        emailArchiveBucket,
+        openApiQueue,
+        groupingQueue,
+        categorizedEmailsTable,
+        opensearch,
+        openApiKey,
+        stageConsts,
+        usersTable,
+      ],
+      accountId: currentAccountId,
+      s3BucketArn: emailArchiveBucket.arn,
+    });
 
     const DefaultIamOpenSearchPolicy = await aws.iam.getPolicy({
       name: "AmazonOpenSearchServiceFullAccess",
     });
 
-    const {imgProxyKey, imgProxySalt, imgProxyService, imgProxyApi} = createImgProxyStack(vpc);
+    const { imgProxyKey, imgProxySalt, imgProxyService, imgProxyApi } =
+      createImgProxyStack(vpc);
 
     openApiQueue.subscribe(categorizeEmailLambda.arn);
-    
+
     //Cognito User pool
 
     const syncGroupsToEmails = new sst.aws.Function("sync-groups", {
@@ -313,7 +329,6 @@ export default $config({
         supportedIdentityProviders: ["COGNITO"],
       }
     );
-
 
     //Permissions
     const s3PermissionForProcessing = new aws.lambda.Permission(
@@ -535,6 +550,7 @@ export default $config({
       ],
       environment: {
         NEXT_PUBLIC_CDN_URL: $util.interpolate`${cdnAssetDistribution.domainName}`,
+        NEXT_PUBLIC_ENVIRONMENT: process.env.SST_STAGE ?? "dev",
       },
       permissions: [
         {
@@ -554,58 +570,58 @@ export default $config({
 async function createSimpleEmailServiceStack(domain: string) {
   // Create a Route 53 Hosted Zone
   const hostedZone = await aws.route53.getZone({
-      name: domain,
-    });
+    name: domain,
+  });
   // Create SES Domain Identity
   const sesDomainIdentity = new aws.ses.DomainIdentity("sesDomainIdentity", {
-      domain,
-    });
+    domain,
+  });
 
-    // Create DKIM Identity
-    const sesDkim = new aws.ses.DomainDkim("sesDkim", {
-      domain: sesDomainIdentity.domain,
-    });
+  // Create DKIM Identity
+  const sesDkim = new aws.ses.DomainDkim("sesDkim", {
+    domain: sesDomainIdentity.domain,
+  });
 
-    sesDkim.dkimTokens.apply((tokens) =>
-      tokens.map((token, i) => {
-        return new aws.route53.Record(`dkimRecord${i + 1}`, {
-          zoneId: hostedZone.id,
-          name: `${token}._domainkey.${domain}`,
-          type: "CNAME",
-          records: [`${token}.dkim.amazonses.com`],
-          ttl: 300,
-        });
-      }));
+  sesDkim.dkimTokens.apply((tokens) =>
+    tokens.map((token, i) => {
+      return new aws.route53.Record(`dkimRecord${i + 1}`, {
+        zoneId: hostedZone.id,
+        name: `${token}._domainkey.${domain}`,
+        type: "CNAME",
+        records: [`${token}.dkim.amazonses.com`],
+        ttl: 300,
+      });
+    }));
 
-    const mxRecord = new aws.route53.Record("sesMXRecord", {
-      zoneId: hostedZone.id,
-      name: domain,
-      type: "MX",
-      ttl: 300,
-      records: ["10 inbound-smtp.us-east-1.amazonaws.com"],
-    });
+  const mxRecord = new aws.route53.Record("sesMXRecord", {
+    zoneId: hostedZone.id,
+    name: domain,
+    type: "MX",
+    ttl: 300,
+    records: ["10 inbound-smtp.us-east-1.amazonaws.com"],
+  });
 
-    // Add a TXT Record for SES Domain Verification
-    const txtRecord = new aws.route53.Record("sesTxtRecord", {
-      zoneId: hostedZone.id,
-      name: `_amazonses.${domain}`,
-      type: "TXT",
-      ttl: 300,
-      records: [sesDomainIdentity.verificationToken], // Get this from AWS SES
-    });
+  // Add a TXT Record for SES Domain Verification
+  const txtRecord = new aws.route53.Record("sesTxtRecord", {
+    zoneId: hostedZone.id,
+    name: `_amazonses.${domain}`,
+    type: "TXT",
+    ttl: 300,
+    records: [sesDomainIdentity.verificationToken], // Get this from AWS SES
+  });
 
-    new aws.route53.Record("spfRecord", {
-      zoneId: hostedZone.id,
-      name: domain,
-      type: "TXT",
-      records: ["v=spf1 include:amazonses.com -all"],
-      ttl: 300,
-    });
+  new aws.route53.Record("spfRecord", {
+    zoneId: hostedZone.id,
+    name: domain,
+    type: "TXT",
+    records: ["v=spf1 include:amazonses.com -all"],
+    ttl: 300,
+  });
 
-  return { sesDomainIdentity }
+  return { sesDomainIdentity };
 }
 
-async function UserRegistrationService(link : $util.Input<any>[]) {
+async function UserRegistrationService(link: $util.Input<any>[]) {
   // Create a new OpenSearch domain
   const proccessUserConfirmation = new sst.aws.Function(
     "process-user-confirmation",
@@ -620,18 +636,18 @@ async function UserRegistrationService(link : $util.Input<any>[]) {
   });
 
   const attachOsPermissionsToUserCreationLambda =
-  new aws.iam.RolePolicyAttachment(
-    "attach-os-permissions-to-user-creation",
-    $util
-      .all([
-        proccessUserConfirmation.nodes.role.name,
-        DefaultIamOpenSearchPolicy.arn,
-      ]) // Use the IAM Role ARN, not the Lambda function ARN
-      .apply(([roleName, policyArn]) => ({
-        role: roleName,
-        policyArn: policyArn,
-      }))
-  );
+    new aws.iam.RolePolicyAttachment(
+      "attach-os-permissions-to-user-creation",
+      $util
+        .all([
+          proccessUserConfirmation.nodes.role.name,
+          DefaultIamOpenSearchPolicy.arn,
+        ]) // Use the IAM Role ARN, not the Lambda function ARN
+        .apply(([roleName, policyArn]) => ({
+          role: roleName,
+          policyArn: policyArn,
+        }))
+    );
 
   const userPool = new sst.aws.CognitoUserPool("user-pool", {
     usernames: ["email"],
@@ -648,18 +664,25 @@ async function UserRegistrationService(link : $util.Input<any>[]) {
     })),
   });
 
-
-  return { proccessUserConfirmation, userPool, userPoolEndpoint, attachOsPermissionsToUserCreationLambda };
+  return {
+    proccessUserConfirmation,
+    userPool,
+    userPoolEndpoint,
+    attachOsPermissionsToUserCreationLambda,
+  };
 }
 
 type OpenSearchStackArgs = {
   accountId: string;
   syncOpenSearchLinks: $util.Input<any>[];
   dynamoTable: sst.aws.Dynamo;
-} 
+};
 
-
-async function createOsStack({accountId, syncOpenSearchLinks, dynamoTable}: OpenSearchStackArgs): Promise<{
+async function createOsStack({
+  accountId,
+  syncOpenSearchLinks,
+  dynamoTable,
+}: OpenSearchStackArgs): Promise<{
   opensearch: aws.opensearch.Domain;
   syncOpenSearch: sst.aws.Function;
 }> {
@@ -913,53 +936,51 @@ async function createOsStack({accountId, syncOpenSearchLinks, dynamoTable}: Open
       ],
     });
 
-    const syncOpenSearch = new sst.aws.Function("sync-open-search", {
-      handler: "functions/sync-dynamo-to-os.handler",
-      link: [...syncOpenSearchLinks, opensearch],
-    });
+  const syncOpenSearch = new sst.aws.Function("sync-open-search", {
+    handler: "functions/sync-dynamo-to-os.handler",
+    link: [...syncOpenSearchLinks, opensearch],
+  });
 
-    const DefaultStreamingPolicy = await aws.iam.getPolicy({
-      name: "AWSLambdaInvocation-DynamoDB",
-    });
+  const DefaultStreamingPolicy = await aws.iam.getPolicy({
+    name: "AWSLambdaInvocation-DynamoDB",
+  });
 
-    const attachStreamPermissionsToSyncOpenSearch =
-      new aws.iam.RolePolicyAttachment(
-        "attach-stream-permissions-to-sync-os",
-        $util
-          .all([syncOpenSearch.nodes.role.name]) // Use the IAM Role ARN, not the Lambda function ARN
-          .apply(([roleName]) => ({
-            role: roleName,
-            policyArn: DefaultStreamingPolicy.arn,
-          }))
-      );
+  const attachStreamPermissionsToSyncOpenSearch =
+    new aws.iam.RolePolicyAttachment(
+      "attach-stream-permissions-to-sync-os",
+      $util
+        .all([syncOpenSearch.nodes.role.name]) // Use the IAM Role ARN, not the Lambda function ARN
+        .apply(([roleName]) => ({
+          role: roleName,
+          policyArn: DefaultStreamingPolicy.arn,
+        }))
+    );
 
+  const DefaultIamOpenSearchPolicy = await aws.iam.getPolicy({
+    name: "AmazonOpenSearchServiceFullAccess",
+  });
 
-    const DefaultIamOpenSearchPolicy = await aws.iam.getPolicy({
-      name: "AmazonOpenSearchServiceFullAccess",
-    });
+  const attachOsPermissionsToSyncOpenSearch = new aws.iam.RolePolicyAttachment(
+    "attach-os-permissions-to-opens-search",
+    $util
+      .all([syncOpenSearch.nodes.role.name]) // Use the IAM Role ARN, not the Lambda function ARN
+      .apply(([roleName]) => ({
+        role: roleName,
+        policyArn: DefaultIamOpenSearchPolicy.arn,
+      }))
+  );
 
-      const attachOsPermissionsToSyncOpenSearch =
-      new aws.iam.RolePolicyAttachment(
-        "attach-os-permissions-to-opens-search",
-        $util
-          .all([syncOpenSearch.nodes.role.name]) // Use the IAM Role ARN, not the Lambda function ARN
-          .apply(([roleName]) => ({
-            role: roleName,
-            policyArn: DefaultIamOpenSearchPolicy.arn,
-          }))
-      );
-
-      const osSyncToDynamo = new aws.lambda.EventSourceMapping(
-        "os-sync-subscribe-to-email-table",
-        {
-          eventSourceArn: dynamoTable.nodes.table.streamArn,
-          functionName: syncOpenSearch.arn,
-          startingPosition: "LATEST",
-          tags: {
-            Name: "dynamodb",
-          },
-        }
-      );
+  const osSyncToDynamo = new aws.lambda.EventSourceMapping(
+    "os-sync-subscribe-to-email-table",
+    {
+      eventSourceArn: dynamoTable.nodes.table.streamArn,
+      functionName: syncOpenSearch.arn,
+      startingPosition: "LATEST",
+      tags: {
+        Name: "dynamodb",
+      },
+    }
+  );
 
   return { opensearch, syncOpenSearch };
 }
@@ -968,11 +989,15 @@ type EmailCategorizationServiceArgs = {
   link: $util.Input<any>[];
   accountId: string;
   s3BucketArn: string | $util.Output<string>;
-}
+};
 
-async function EmailCategorizationService({link, accountId, s3BucketArn}: EmailCategorizationServiceArgs) {
+async function EmailCategorizationService({
+  link,
+  accountId,
+  s3BucketArn,
+}: EmailCategorizationServiceArgs) {
   // Create a new OpenSearch domain
-  const vpc = new sst.aws.Vpc("EmailCategorizationVpc", {nat: "ec2"});
+  const vpc = new sst.aws.Vpc("EmailCategorizationVpc", { nat: "ec2" });
   const categorizeEmailLambda = new sst.aws.Function("categorize-email", {
     handler: "functions/open-api-categorize.handler",
     vpc,
@@ -997,58 +1022,75 @@ async function EmailCategorizationService({link, accountId, s3BucketArn}: EmailC
         }))
     );
 
-    const s3PermissionForCategorization = new aws.lambda.Permission(
-        "s3LambdaPermissionForCategorization",
-        {
-          action: "lambda:InvokeFunction",
-          function: categorizeEmailLambda.name,
-          principal: "s3.amazonaws.com",
-          sourceAccount: accountId,
-          sourceArn: s3BucketArn,
-        }
-      );
+  const s3PermissionForCategorization = new aws.lambda.Permission(
+    "s3LambdaPermissionForCategorization",
+    {
+      action: "lambda:InvokeFunction",
+      function: categorizeEmailLambda.name,
+      principal: "s3.amazonaws.com",
+      sourceAccount: accountId,
+      sourceArn: s3BucketArn,
+    }
+  );
   return { categorizeEmailLambda, vpc };
 }
 
-function createImgProxyStack(vpc = new sst.aws.Vpc("ImgproxyVpc"), cluster = new sst.aws.Cluster("ImgproxyCluster", { vpc })) {
+function createImgProxyStack(
+  vpc = new sst.aws.Vpc("ImgproxyVpc"),
+  cluster = new sst.aws.Cluster("ImgproxyCluster", { vpc })
+) {
   const imgProxyKey = new sst.Secret("ImgProxyKey");
   const imgProxySalt = new sst.Secret("ImgProxySalt");
-  const imgProxyService = $util.all([imgProxySalt.value, imgProxyKey.value]).apply(([imgProxySalt, imgProxyKey]) => new sst.aws.Service("ImgproxyService", {
-    cluster,
-    cpu: "0.5 vCPU",
-    memory: "1 GB",
-    loadBalancer: { rules:[{listen: "8080/tcp", forward: "8080/tcp" }]},
-    environment: {
-        IMGPROXY_KEY: imgProxyKey.value,         // Set securely with secrets
-        IMGPROXY_SALT: imgProxySalt.value,       // Set securely with secrets
-        IMGPROXY_USE_ETAG: "true",            // Optional: CDN-friendly
-        IMGPROXY_ENABLE_WEBP_DETECTION: "true",
-        IMGPROXY_USE_S3: "true",              // if accessing S3 directly
-        IMGPROXY_USER_AGENT: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"
-    },
-    image: {
-        context: "./services/imgproxy",
-        dockerfile: "./services/imgproxy/Dockerfile",
-    },
-    dev: false,
-    serviceRegistry: {
-      port: 8080
-    }
-    // {
-    //     // Export the IMGPROXY_KEY and IMGPROXY_SALT before running the container
-    //     command: `docker run -e IMGPROXY_SALT=${imgProxySalt} -e IMGPROXY_KEY=${imgProxyKey} -p 8080:8080 imgproxy`,
-    //     url: "http://localhost:8080"
-    //   }
-})); 
+  const imgProxyService = $util
+    .all([imgProxySalt.value, imgProxyKey.value])
+    .apply(
+      ([imgProxySalt, imgProxyKey]) =>
+        new sst.aws.Service("ImgproxyService", {
+          cluster,
+          cpu: "0.5 vCPU",
+          memory: "1 GB",
+          loadBalancer: {
+            rules: [{ listen: "8080/tcp", forward: "8080/tcp" }],
+          },
+          environment: {
+            IMGPROXY_KEY: imgProxyKey.value, // Set securely with secrets
+            IMGPROXY_SALT: imgProxySalt.value, // Set securely with secrets
+            IMGPROXY_USE_ETAG: "true", // Optional: CDN-friendly
+            IMGPROXY_ENABLE_WEBP_DETECTION: "true",
+            IMGPROXY_USE_S3: "true", // if accessing S3 directly
+            IMGPROXY_USER_AGENT:
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+          },
+          image: {
+            context: "./services/imgproxy",
+            dockerfile: "./services/imgproxy/Dockerfile",
+          },
+          dev: false,
+          serviceRegistry: {
+            port: 8080,
+          },
+          // {
+          //     // Export the IMGPROXY_KEY and IMGPROXY_SALT before running the container
+          //     command: `docker run -e IMGPROXY_SALT=${imgProxySalt} -e IMGPROXY_KEY=${imgProxyKey} -p 8080:8080 imgproxy`,
+          //     url: "http://localhost:8080"
+          //   }
+        })
+    );
 
   const imgProxyApi = new sst.aws.ApiGatewayV2("ImgProxyApi", {
-      vpc,
+    vpc,
   });
-  imgProxyApi.routePrivate("$default", imgProxyService.nodes.cloudmapService.arn);
+  imgProxyApi.routePrivate(
+    "$default",
+    imgProxyService.nodes.cloudmapService.arn
+  );
 
-  if(process.env.SST_STAGE !== "dev"){
-      imgProxyApi.routePrivate("$default", imgProxyService.nodes.cloudmapService.arn);
+  if (process.env.SST_STAGE !== "dev") {
+    imgProxyApi.routePrivate(
+      "$default",
+      imgProxyService.nodes.cloudmapService.arn
+    );
   }
 
-  return { imgProxyService, imgProxyKey, imgProxySalt, imgProxyApi }
+  return { imgProxyService, imgProxyKey, imgProxySalt, imgProxyApi };
 }

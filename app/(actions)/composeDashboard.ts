@@ -1,20 +1,22 @@
 "use server";
 
-import { DashboardParams, GroupRecord } from "@/types";
+import { DashboardParams } from "@/types";
 import { FetchData } from "../../components/providers/DashboardProvider";
-import { getApplicationData, getFormattedEmails } from "../api/helpers";
+import { composeApplications } from "./composeApplications";
+import { composeEmails } from "./compostEmails";
 
 export async function composeDashboardData(
   params: DashboardParams,
   fetchApps?: boolean
 ): Promise<FetchData> {
-  const { emails, chartData } = await getFormattedEmails(params);
-  let applications: GroupRecord[] | undefined = fetchApps
-    ? await getApplicationData(params)
-    : undefined;
+  const { emails, chartData } = await composeEmails(params);
+  let { records, maxApplications } = fetchApps
+    ? await composeApplications(params)
+    : { records: [], maxApplications: 0 };
   return {
     emails,
     chartData,
-    applications,
+    applications: records,
+    maxApplications,
   };
 }

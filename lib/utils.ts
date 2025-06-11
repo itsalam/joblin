@@ -7,11 +7,11 @@ export function cn(...inputs: ClassValue[]) {
 
 type HandlerFactoryArgs = {
   methods: Request["method"][];
-  handler: (req: Request, params: Promise<any>) => Promise<Response>;
+  handler: (req: Request, args: { params: Promise<any> }) => Promise<Response>;
 };
 
 export function handlerFactory({ methods, handler }: HandlerFactoryArgs) {
-  return async (req: Request, params: Promise<any>) => {
+  return async (req: Request, params: { params: Promise<any> }) => {
     if (!methods.includes(req.method))
       return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
         status: 405,

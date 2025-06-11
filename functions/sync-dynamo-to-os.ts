@@ -23,15 +23,16 @@ export async function handler(event: DynamoDBStreamEvent) {
   for (const record of event.Records) {
     const newImage = record.dynamodb?.NewImage;
     const oldImage = record.dynamodb?.OldImage;
-    const newItem = unmarshall(
-      newImage as Record<string, AttributeValue>
-    ) as CategorizedEmail;
+
     const oldItem: CategorizedEmail | null = oldImage
       ? (unmarshall(
           record.dynamodb?.OldImage as Record<string, AttributeValue>
         ) as CategorizedEmail)
       : null;
     if (newImage) {
+      const newItem = unmarshall(
+        newImage as Record<string, AttributeValue>
+      ) as CategorizedEmail;
       try {
         upsertOpenSearchEmailItem(newItem, !!oldItem);
         logger.info(`Updated document ${newItem.id} in OpenSearch.`);
@@ -100,8 +101,7 @@ export const upsertOpenSearchEmailItem = async (
       ).body._source;
 
       const updatedDocument = {
-        company_title: item.company_title,
-        job_title: item.job_title,
+        ...item,
         vector_embedding: existingDocument?.vector_embedding || [], // Preserve embedding
       };
 

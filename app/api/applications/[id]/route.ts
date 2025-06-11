@@ -25,7 +25,6 @@ async function handler(
   return new Response(
     JSON.stringify({
       data: response.Item as GroupRecord,
-      message: "Record updated successfully!",
     }),
     {
       status: 200,

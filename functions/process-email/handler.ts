@@ -2,7 +2,17 @@ import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { APIGatewayEvent, S3Event } from "aws-lambda";
 import { Resource } from "sst";
 import { extractOriginalMessageId, lambdaLogger } from "../utils";
-import { checkSeenEmailInDynamoDB, checkSeenEmailInS3, deleteRecord, extractEmailFromS3, getAssociatedUser, moveToPersonalPrefix, processAttachments, sendToUserEmail, updateHtmlImages } from "./helpers";
+import {
+  checkSeenEmailInDynamoDB,
+  checkSeenEmailInS3,
+  deleteRecord,
+  extractEmailFromS3,
+  getAssociatedUser,
+  moveToPersonalPrefix,
+  processAttachments,
+  sendToUserEmail,
+  updateHtmlImages,
+} from "./helpers";
 
 const logger = lambdaLogger();
 
@@ -11,7 +21,8 @@ const sqs = new SQSClient();
 
 export async function handler(event: S3Event & APIGatewayEvent) {
   const record = event.Records?.[0]?.s3;
-  const objectKey: string = record?.object?.key || JSON.parse(event.body ?? "").key;
+  const objectKey: string =
+    record?.object?.key || JSON.parse(event.body ?? "").key;
   try {
     logger.debug("Incoming SES email event:", JSON.stringify(event, null, 2));
     // Extract the email from SES event
@@ -45,7 +56,7 @@ export async function handler(event: S3Event & APIGatewayEvent) {
         key
       );
       if (emailDynamoDBObject.Items?.length) {
-        // throw `Duplicate found; Ignoring record: ${key}.. `;
+        throw `Duplicate found; Ignoring record: ${key}.. `;
       } else {
         logger.info("S3 record found, but not in DynamoDB");
       }
@@ -63,9 +74,9 @@ export async function handler(event: S3Event & APIGatewayEvent) {
         await sendToUserEmail(targetEmail, userEmail, rawEmail);
       }
     }
-    if(true){
+    if (true) {
       await processAttachments(emailContent);
-      await updateHtmlImages(messageId, emailContent)
+      await updateHtmlImages(messageId, emailContent);
       await moveToPersonalPrefix(key, objectKey);
     }
 
@@ -101,4 +112,3 @@ export async function handler(event: S3Event & APIGatewayEvent) {
     };
   }
 }
-

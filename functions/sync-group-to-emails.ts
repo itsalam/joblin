@@ -1,6 +1,7 @@
 import { GroupRecord } from "@/types";
 import {
   AttributeValue,
+  DeleteItemCommand,
   DynamoDBClient,
   GetItemCommand,
   PutItemCommand,
@@ -42,6 +43,9 @@ export async function handler(event: DynamoDBStreamEvent) {
               }
               const email = unmarshall(res.Item) as CategorizedEmail;
               email.group_id = newItem.id;
+              email.job_title = newItem.job_title ?? email.job_title;
+              email.company_title =
+                newItem.company_title ?? email.company_title;
               const emailRecord = marshall(email);
               const insertRecord = await dynamo.send(
                 new PutItemCommand({
@@ -50,6 +54,23 @@ export async function handler(event: DynamoDBStreamEvent) {
                 })
               );
             });
+        });
+    } else if (oldImage) {
+      const oldItem = unmarshall(
+        oldImage as Record<string, AttributeValue>
+      ) as GroupRecord;
+      Object.values(oldItem.email_ids)
+        .flat()
+        .forEach(async (email) => {
+          logger.info(email);
+          return await dynamo.send(
+            new DeleteItemCommand({
+              TableName: Resource["categorized-emails-table"].name,
+              Key: {
+                id: { S: email },
+              },
+            })
+          );
         });
     }
   }

@@ -38,6 +38,7 @@ function Badge({ className, variant, ...props }: BadgeProps) {
 export function ApplicationBadge({
   status,
   className,
+  children,
   ...props
 }: BadgeProps & { status: ApplicationStatus }) {
   return (
@@ -50,6 +51,7 @@ export function ApplicationBadge({
         .toLocaleUpperCase()
         .slice(0, 1)
         .concat(status.slice(1).toLocaleLowerCase())}
+      {children}
     </Badge>
   );
 }
