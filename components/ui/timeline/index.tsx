@@ -1,10 +1,11 @@
 import { ApplicationStatusColor } from "@/components/helpers";
 import { useDashboard } from "@/components/providers/DashboardProvider";
-import { getEmailIem, setEmailItem } from "@/lib/clientCache";
+import { setEmailItem } from "@/lib/clientCache";
 import { cn } from "@/lib/utils";
-import { ApplicationStatus, GroupRecord } from "@/types";
+import { ApplicationStatus, Group, GroupRecord } from "@/types";
 import { motion } from "framer-motion";
-import { FC, SVGProps, useCallback, useEffect, useMemo, useState } from "react";
+import { FC, SVGProps, useCallback, useMemo, useRef, useState } from "react";
+import useSWR from "swr";
 import { TooltipProvider } from "../tooltip";
 import {
   BreadCrumbItem,
@@ -27,6 +28,8 @@ type BreadCrumbData = {
   sent_on?: string;
 };
 
+const baseURL = "/api/applications/emails";
+
 const TimelineBreadCrumbs = (props: {
   expand: boolean;
   applicationData: Partial<GroupRecord>;
@@ -34,63 +37,67 @@ const TimelineBreadCrumbs = (props: {
 }) => {
   const { focusToEmail } = useDashboard();
   const { applicationData, editMode, expand } = props;
+  const [emailIds, setEmailIds] = useState<Group<ApplicationStatus, string[]>>(
+    applicationData.email_ids ?? {}
+  );
   const [groupEmails, setGroupEmails] = useState<CategorizedEmail[]>([]);
   const [isFetching, setIsFetching] = useState(false);
+  const initialUpdate = useRef<boolean>(false);
+  const { mutate, isLoading, isValidating } = useSWR(
+    expand ? [baseURL, applicationData.id] : null,
+    ([e, applicationId]) => {
+      setIsFetching(true);
+      const searchParams = new URLSearchParams({
+        applicationId: applicationId ?? "",
+      });
 
-  useEffect(() => {
-    if (!expand) {
-      return;
-    }
-    setIsFetching(true);
-    const groupEmailIds = Object.values(
-      applicationData?.email_ids ?? []
-    ).flat();
-    if (groupEmailIds.every((emailId) => getEmailIem(emailId))) {
-      setGroupEmails(
-        groupEmailIds.map((emailId) => getEmailIem(emailId) as CategorizedEmail)
-      );
-      setIsFetching(false);
-      return;
-    }
-
-    const baseURL = "/api/applications/emails";
-
-    const searchParams = new URLSearchParams({
-      applicationId: applicationData.id ?? "",
-    });
-    const url = `${baseURL}?${searchParams.toString()}`;
-    let newEmails: CategorizedEmail[] = [];
-    fetch(url)
-      .then((x) => {
+      const url = `${e}?${searchParams.toString()}`;
+      console.log({ url });
+      return fetch(url).then((x) => {
         return x.json() as Promise<FetchData>;
-      })
-      .then((data) => {
+      });
+    },
+    {
+      onSuccess: (data) => {
+        let newEmails: CategorizedEmail[] = [];
+        console.log(data);
         setIsFetching(false);
         data.emails.forEach((email) => {
           setEmailItem(email.id, email);
           newEmails.push(email);
         });
         setGroupEmails((prev) => {
-          return [...prev, ...newEmails].sort((a, b) => {
+          const uniqueEmails = new Map<string, CategorizedEmail>(
+            [...prev, ...newEmails].map((e) => [e.id, e])
+          );
+
+          console.log({ uniqueEmails });
+          const res = Array.from(uniqueEmails.values()).sort((a, b) => {
             return (
               new Date(a.sent_on).getTime() - new Date(b.sent_on).getTime()
             );
           });
-        });
-      });
-  }, [expand, applicationData]);
 
-  // const { emails } = useDashboard();
+          console.log({ res });
+          return res;
+        });
+      },
+      onError: (error) => {
+        console.error("Error fetching emails:", error);
+        setIsFetching(false);
+      },
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 5000,
+    }
+  );
 
   const timelineItems = useMemo(() => {
     let timelineItems: BreadCrumbData[] = groupEmails.map((email) => ({
       email,
       application_status: email.application_status,
     }));
-    groupEmails.map((email) => ({
-      email,
-      application_status: email.application_status,
-    }));
+
     if (
       !timelineItems.some(
         (email) =>
@@ -111,20 +118,19 @@ const TimelineBreadCrumbs = (props: {
     return timelineItems.map(({ application_status, email }, i) => {
       return (
         <BreadCrumbItem
-          applicationData={applicationData}
           onClick={() => focusToEmail(email?.id ?? "")}
           emailData={email}
           stepColor={getStepColor(email?.id, application_status)}
           key={`${i}-${email?.id ?? application_status}`}
           editMode={editMode}
-          isLoading={isFetching}
+          isLoading={isFetching || isLoading || isValidating}
           status={application_status}
           isLast={i === timelineItems.length - 1}
           index={i}
         />
       );
     });
-  }, [timelineItems, editMode]);
+  }, [timelineItems, editMode, isFetching, isLoading, isValidating]);
 
   const Gradients = useCallback(() => {
     return timelineItems.map(({ email, application_status }, i) => {

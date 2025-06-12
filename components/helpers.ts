@@ -178,7 +178,7 @@ const toBase64 = (str: string) =>
 
 export function useCachedLogo(company: string, size = 48, isLoading = false) {
   const baseURL = "/api/logo";
-  const fallbackUrl = `data:image/svg+xml;base64,${toBase64(shimmerWithLetter(size, size, company.slice(0, 1).toLocaleUpperCase(), isLoading))}`;
+  const fallbackUrl = `data:image/svg+xml;base64,${toBase64(shimmerWithLetter(size, size, (company ?? "").slice(0, 1).toLocaleUpperCase(), isLoading))}`;
   const [url, setUrl] = useState<string>(logoCache.get(company) ?? fallbackUrl);
   const [error, setError] = useState<string | null>(null);
   const fetchLogoUrl = async () => {

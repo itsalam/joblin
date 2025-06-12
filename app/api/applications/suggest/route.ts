@@ -98,7 +98,6 @@ async function handler(req: Request) {
       },
     ]) // key by name
   );
-  console.log("applicationDataMap", applicationDataMap);
 
   const applications = [...applicationDataMap.values()];
 

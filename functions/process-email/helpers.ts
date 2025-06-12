@@ -165,7 +165,6 @@ export const checkSeenEmailInS3 = async (s3Arn: string) => {
         Key: s3Arn,
       })
     );
-    console.log("HeadObject response:", headObject);
     return true; // Object exists
   } catch (err: any) {
     if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) {

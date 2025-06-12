@@ -18,7 +18,7 @@ import { DateRange, DateRanges } from "@/lib/consts";
 import { cn } from "@/lib/utils";
 import debounce from "debounce";
 import { ChevronDown, Search, X } from "lucide-react";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import Header from "@/components/menu/header";
 import { Badge } from "@/components/ui/badge";
@@ -48,9 +48,8 @@ export default function MenuBar() {
   const { params, setParams, isFetching } = useDashboard();
   const [value, setValue] = useState("");
   const [filters, setFilters] = useState<Filter[]>([]);
-  const hasBeenUpdated = useRef(false);
 
-  const isFetchingFromMenuBar = isFetching && !hasBeenUpdated.current;
+  const isFetchingFromMenuBar = Object.values(isFetching).some((v) => !!v);
 
   const convertInputToFilter = (
     input: string,
@@ -94,18 +93,14 @@ export default function MenuBar() {
 
   useEffect(() => {
     updateSearchOptions(value, filters);
-    hasBeenUpdated.current = true;
   }, [value, filters]);
-
-  useEffect(() => {
-    if (!Object.values(isFetching).find((v) => v)) {
-      hasBeenUpdated.current = false;
-    }
-  }, [isFetching]);
 
   return (
     <Header
-    // className={cn({ "rounded-b-none": value.length || filters.length > 0 })}
+      className={cn(
+        { "rounded-b-none border": value.length || filters.length > 0 }
+      )}
+      showBacking={!(value.length || filters.length > 0)}
     >
       <Command
         label="Search"

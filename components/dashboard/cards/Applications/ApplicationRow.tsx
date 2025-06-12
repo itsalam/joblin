@@ -122,7 +122,7 @@ export const TableRow = ({
             ({ ...applicationRecordFallback, ...data }) as GroupRecord
         ),
     {
-      applicationRecordFallback,
+      fallback: applicationRecordFallback,
       revalidateOnMount: false,
     }
   );
@@ -145,9 +145,6 @@ export const TableRow = ({
     ...application,
     ...(edit ? editDataRef.current : {}),
   };
-
-  console.log("Display Data", displayData);
-  console.log({ applicationRecord });
 
   const { draggedData, isDragging, draggedApplications } =
     useApplicationDragContext();
@@ -232,9 +229,6 @@ export const TableRow = ({
       last_updated,
       email_ids: Object.values(ApplicationStatus).reduce(
         (acc, key) => {
-          console.log(key);
-          console.log(groupRecord.email_ids);
-          console.log(displayData.email_ids);
           const newValues =
             groupRecord.email_ids[key as ApplicationStatus] || [];
           const currentValues =
@@ -242,8 +236,6 @@ export const TableRow = ({
           const appStatus = Array.from(
             new Set([...newValues, ...currentValues])
           );
-          console.log("appStatus", appStatus);
-          console.log(newValues, currentValues);
           if (appStatus.length) {
             acc[key as ApplicationStatus] = appStatus;
           }
@@ -381,7 +373,6 @@ export const TableRow = ({
           setEmails((prev) => {
             prev.forEach((email) => {
               if (emailIdsArray.includes(email.id)) {
-                console.log("Updating email group_id", email.id, resultRecord);
                 email.group_id = resultRecord.id;
                 email.company_title = resultRecord.company_title;
                 email.job_title = resultRecord.job_title;
@@ -433,7 +424,7 @@ export const TableRow = ({
         )}
       >
         <TimelineBreadCrumbs
-          expand
+          expand={expand}
           applicationData={displayData}
           editMode={edit}
         />
@@ -490,7 +481,7 @@ export const TableRow = ({
         </AnimatePresence>
       </div>
     );
-  }, [edit, displayData]);
+  }, [edit, expand, displayData]);
 
   return (
     <motion.tbody

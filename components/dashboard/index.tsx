@@ -19,11 +19,8 @@ export default function Main() {
         <main className={`mx-2.5 flex-none transition-all dark:bg-zinc-950`}>
           <div className="mx-auto min-h-screen p-2">
             <div className="h-full w-full flex flex-col gap-5">
-              <MainChart
-                isFetching={isFetching["chartData"]}
-                {...latestData.current}
-              />
-              <Emails emails={latestData.current.emails} />
+              <MainChart {...latestData.current} />
+              <Emails />
               <ApplicationList />
             </div>
           </div>

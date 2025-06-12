@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn, timeAgo } from "@/lib/utils";
 import { GroupRecord, ParsedEmailContent } from "@/types";
-import { ChevronLeft, ChevronRight, PencilIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, OctagonX, PencilIcon } from "lucide-react";
 import {
   ComponentProps,
   HTMLProps,
@@ -35,8 +35,7 @@ import { EditPopoverInput } from "../EditPopoverInput";
 import { LogoAvatar } from "../LogoAvatar";
 
 function Emails(props: { emails: CategorizedEmail[] }) {
-  const { setActiveEmail, activeEmail, isFetching } = useDashboard();
-  const { emails } = props;
+  const { setActiveEmail, activeEmail, isFetching, emails } = useDashboard();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(15);
   const emailContainerRef = useRef<HTMLDivElement>(null);
@@ -47,7 +46,7 @@ function Emails(props: { emails: CategorizedEmail[] }) {
     if (isFetching["emails"]) {
       setPage(0);
     }
-  }, [isFetching]);
+  }, [isFetching.emails]);
 
   const EmailListing = useCallback(({
     email,
@@ -170,36 +169,14 @@ function Emails(props: { emails: CategorizedEmail[] }) {
         </ResizablePanel>
         <ResizableHandle />
         <ResizablePanel className="flex flex-col relative">
-          {activeEmail && <EmailDetailPanel email={activeEmail} />}
-          <Separator orientation="horizontal" />
-          <div className="mt-2 flex h-12 w-full items-center justify-between px-5">
-            {/* left side */}
-            <div className="flex items-center gap-3">
-              <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                Showing 6 rows per page
-              </p>
-            </div>
-            {/* right side */}
-            <div className="flex items-center gap-2">
-              <Button
-                className={`flex items-center justify-center rounded-lg bg-transparent p-3 text-lg text-zinc-950 transition duration-200 hover:bg-transparent active:bg-transparent dark:text-white dark:hover:bg-transparent dark:active:bg-transparent`}
-              >
-                <ChevronLeft />
-              </Button>
-              <Button
-                className={`flex min-w-[34px] items-center justify-center rounded-lg bg-transparent p-3 text-lg text-zinc-950 transition duration-200 hover:bg-transparent active:bg-transparent dark:text-white dark:hover:bg-transparent dark:active:bg-transparent`}
-              >
-                <ChevronRight />
-              </Button>
-            </div>
-          </div>
+          <EmailDetailPanel email={activeEmail ?? undefined} />
         </ResizablePanel>
       </ResizablePanelGroup>
     </Card>
   );
 }
 
-const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
+const EmailDetailPanel = ({ email }: { email?: CategorizedEmail }) => {
   const loadedEmail = useRef<ParsedEmailContent>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [emailContent, setEmailContent] = useState<ParsedEmailContent | null>(
@@ -211,9 +188,8 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
   const [loading, setLoading] = useState(false);
   const baseURL = "/api/email-data";
 
-  console.log("EmailDetailPanel", email);
-
   useEffect(() => {
+    if (!email || !email.id) return; // No email to load
     const fetchEmailContent = async () => {
       if (loadedEmail.current?.id === email.id) return; // already loaded
       setLoading(true);
@@ -235,7 +211,24 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
       setLoading(false);
     };
     fetchEmailContent();
-  }, [email.id]);
+  }, [email?.id]);
+
+  const deleteEmail = useCallback(async () => {
+    if (!email || !email.id || !email.s3_arn) return;
+    setLoading(true);
+    const searchParams = new URLSearchParams({
+      messageId: email.id,
+      s3_arn: email.s3_arn,
+    });
+    const url = `${baseURL}?${searchParams.toString()}`;
+    const response = await fetch(url, { method: "DELETE" });
+    if (!response.ok) {
+      setError("Failed to delete email");
+      setLoading(false);
+      return;
+    }
+    setLoading(false);
+  }, [email?.id, email?.s3_arn]);
 
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -267,10 +260,10 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
   }, [emailContent]);
 
   const Avatar = useCallback(
-    () => (
+    (email: CategorizeEmailItem) => (
       <LogoAvatar company={email.company_title} size={44} isLoading={loading} />
     ),
-    [email]
+    []
   );
 
   type GroupRecordSubdata = Pick<
@@ -278,15 +271,17 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
     "company_title" | "job_title" | "id"
   >;
 
-  const groupRecordData = {
-    company_title: email.company_title,
-    job_title: email.job_title,
-    id: email.group_id,
-  };
+  const groupRecordData = email
+    ? {
+        company_title: email.company_title,
+        job_title: email.job_title,
+        id: email.group_id,
+      }
+    : {};
 
   const suggestApplications = useCallback(
     async (searchTerm?: string) => {
-      if (!email.company_title) return [];
+      if (!email?.company_title) return [];
       const searchParams = new URLSearchParams({
         application_title: email.job_title,
         company_title: email.company_title,
@@ -305,13 +300,18 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
 
       return applications;
     },
-    [email.company_title, email.job_title]
+    [email?.company_title, email?.job_title]
   );
 
   return (
     <>
       <TooltipProvider>
-        <div className="flex items-center gap-1">
+        <div
+          className={cn(
+            "flex items-center",
+            { "opacity-50 pointer-events-none": !email }
+          )}
+        >
           <TooltipButton
             variant="ghost"
             content="Edit"
@@ -319,104 +319,115 @@ const EmailDetailPanel = ({ email }: { email: CategorizedEmail }) => {
           >
             <PencilIcon />
           </TooltipButton>
+          <TooltipButton
+            variant="ghost"
+            content="Delete"
+            onClick={() => setEdit((edit) => !edit)}
+          >
+            <OctagonX />
+          </TooltipButton>
         </div>
       </TooltipProvider>
       <Separator orientation="horizontal" />
-      <div
-        className="flex flex-col h-full flex-1 overflow-hidden"
-        id={email.id}
-      >
-        <div className="flex gap-3 items-center p-5">
-          <Avatar />
+      {!email ? (
+        <div></div>
+      ) : (
+        <div
+          className="flex flex-col h-full flex-1 overflow-hidden"
+          id={email.id}
+        >
+          <div className="flex gap-3 items-center p-5">
+            <Avatar />
 
-          <div className="flex items-center gap-2 h-full relative justify-between w-full">
-            <div className="flex flex-col gap-0.5 w-full">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-zinc-950 dark:text-white">
-                  {email.company_title}
-                  <span className="font-normal text-xs text-zinc-600 dark:text-white">
-                    {` <${email.from}>`}
-                  </span>
-                </p>
-              </div>
+            <div className="flex items-center gap-2 h-full relative justify-between w-full">
+              <div className="flex flex-col gap-0.5 w-full">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-zinc-950 dark:text-white">
+                    {email.company_title}
+                    <span className="font-normal text-xs text-zinc-600 dark:text-white">
+                      {` <${email.from}>`}
+                    </span>
+                  </p>
+                </div>
 
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-zinc-950 dark:text-white">
-                  {email.subject}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <EditPopoverInput<GroupRecordSubdata>
-                  initialValue={groupRecordData}
-                  edit={edit}
-                  key={groupRecordData.id}
-                  placeholder="Untitled Application"
-                  className="text-xs text-zinc-600 dark:text-white"
-                  fetchItems={suggestApplications}
-                  extractSearchValue={(value) => value.job_title || ""}
-                  renderItem={(value) => {
-                    const { id, company_title, job_title } = value;
-                    return {
-                      value: value,
-                      children: (
-                        <div className="flex gap-2 items-center py-1">
-                          <LogoAvatar company={company_title} size={40} />
-                          <div className="flex flex-col w-full">
-                            <div className="flex flex-col items-start font-semibold justify-between">
-                              <p className="text-xs text-zinc-950 dark:text-white">
-                                {company_title}
-                              </p>
-                              <p
-                                className={cn(
-                                  "text-xs font-medium text-zinc-950", // Typography
-                                  "dark:text-white",
-                                  !!!job_title.length && "text-zinc-400"
-                                )}
-                              >
-                                {job_title.length ? job_title : "-"}
-                              </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-zinc-950 dark:text-white">
+                    {email.subject}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <EditPopoverInput<GroupRecordSubdata>
+                    initialValue={groupRecordData}
+                    edit={edit}
+                    key={groupRecordData.id}
+                    placeholder="Untitled Application"
+                    className="text-xs text-zinc-600 dark:text-white"
+                    fetchItems={suggestApplications}
+                    extractSearchValue={(value) => value.job_title || ""}
+                    renderItem={(value) => {
+                      const { id, company_title, job_title } = value;
+                      return {
+                        value: value,
+                        children: (
+                          <div className="flex gap-2 items-center py-1">
+                            <LogoAvatar company={company_title} size={40} />
+                            <div className="flex flex-col w-full">
+                              <div className="flex flex-col items-start font-semibold justify-between">
+                                <p className="text-xs text-zinc-950 dark:text-white">
+                                  {company_title}
+                                </p>
+                                <p
+                                  className={cn(
+                                    "text-xs font-medium text-zinc-950", // Typography
+                                    "dark:text-white",
+                                    !!!job_title.length && "text-zinc-400"
+                                  )}
+                                >
+                                  {job_title.length ? job_title : "-"}
+                                </p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ),
-                    };
-                  }}
+                        ),
+                      };
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col items-end justify-around w-min h-full">
+                <p className="text-xs font-medium text-zinc-950 dark:text-white text-nowrap">
+                  {timeAgo(email.sent_on)}
+                </p>
+                <EditApplicationBadge
+                  status={email.application_status}
+                  className="text-xs"
+                  edit={edit}
                 />
               </div>
             </div>
-            <div className="flex flex-col items-end justify-around w-min h-full">
-              <p className="text-xs font-medium text-zinc-950 dark:text-white text-nowrap">
-                {timeAgo(email.sent_on)}
-              </p>
-              <EditApplicationBadge
-                status={email.application_status}
-                className="text-xs"
-                edit={edit}
-              />
-            </div>
           </div>
-        </div>
 
-        <Separator orientation="horizontal" />
-        <div className="flex flex-col items-start gap-3 p-1 flex-1 overflow-y-scroll">
-          {emailContent?.html ? (
-            <iframe
-              ref={iframeRef}
-              title="Email Preview"
-              sandbox="allow-same-origin"
-              className="email-content flex flex-col justify-center align-middle w-full h-full gap-0.5 text-xs text-zinc-600 dark:text-white [&>p]:px-5 [&>p]:p-1 [&>p]:first:pt-5 [&>p]:last:pb-5"
-              style={{}}
-            />
-          ) : (
-            <div className="email-content flex flex-col gap-0.5 p-5 text-xs text-zinc-600 dark:text-white w-full">
-              {emailContent?.text}
+          <Separator orientation="horizontal" />
+          <div className="flex flex-col items-start gap-3 p-1 flex-1 overflow-y-scroll">
+            {emailContent?.html ? (
+              <iframe
+                ref={iframeRef}
+                title="Email Preview"
+                sandbox="allow-same-origin"
+                className="email-content flex flex-col justify-center align-middle w-full h-full gap-0.5 text-xs text-zinc-600 dark:text-white [&>p]:px-5 [&>p]:p-1 [&>p]:first:pt-5 [&>p]:last:pb-5"
+                style={{}}
+              />
+            ) : (
+              <div className="email-content flex flex-col gap-0.5 p-5 text-xs text-zinc-600 dark:text-white w-full">
+                {emailContent?.text}
+              </div>
+            )}
+            <div className="flex gap-1">
+              {/* <Badge variant="outline">{email.application_status.toLocaleUpperCase().slice(0, 1).concat(email.application_status.slice(1).toLocaleLowerCase())}</Badge> */}
             </div>
-          )}
-          <div className="flex gap-1">
-            {/* <Badge variant="outline">{email.application_status.toLocaleUpperCase().slice(0, 1).concat(email.application_status.slice(1).toLocaleLowerCase())}</Badge> */}
           </div>
         </div>
-      </div>
+      )}
     </>
   );
 };
@@ -430,7 +441,7 @@ const TooltipButton = ({
       <TooltipTrigger asChild>
         <Button
           variant="ghost"
-          className="flex items-center justify-center rounded-lg bg-transparent p-3 text-lg text-zinc-950 transition duration-200 hover:bg-transparent active:bg-transparent dark:text-white dark:hover:bg-transparent dark:active:bg-transparent"
+          className="flex items-center justify-center rounded-lg bg-transparent px-1.5 p-3 text-lg text-zinc-950 transition duration-200 hover:bg-transparent active:bg-transparent dark:text-white dark:hover:bg-transparent dark:active:bg-transparent"
           {...props}
         />
       </TooltipTrigger>

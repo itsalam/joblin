@@ -160,19 +160,9 @@ export function EditPopoverInput<T>({
             </DropdownMenu>
           </div>
           <Separator orientation="horizontal" />
-          <CommandList className="text-xs text-zinc-600 dark:text-white">
+          <CommandList className="text-xs text-zinc-600 dark:text-white max-h-96 overflow-y-auto">
             <CommandEmpty className="text-zinc-400">
-              {fetching ? (
-                <div className="flex items-center gap-2">
-                  <Spinner
-                    size="small"
-                    className="h-4 w-4 text-muted-foreground"
-                  />
-                  Loading...
-                </div>
-              ) : (
-                "No results found."
-              )}
+              {"No results found."}
             </CommandEmpty>
             <CommandGroup
               heading={

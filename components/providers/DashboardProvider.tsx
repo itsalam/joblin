@@ -91,7 +91,6 @@ export const DashboardProvider: React.FC<{
   );
 
   const latestData = useRef<FetchData>({ chartData, emails });
-  const hasMounted = useRef(false);
 
   const focusToEmail = (emailId: string) => {
     const email = emails.find((email) => email.id === emailId);
@@ -111,7 +110,8 @@ export const DashboardProvider: React.FC<{
           parent?.scrollTo({
             top:
               Math.abs(
-                parent.offsetTop - (emailElement as HTMLElement).offsetTop
+                (parent as HTMLElement).offsetTop -
+                  (emailElement as HTMLElement).offsetTop
               ) - 12,
             behavior: "smooth",
           });
@@ -157,11 +157,6 @@ export const DashboardProvider: React.FC<{
   }, [params]);
 
   useEffect(() => {
-    if (!hasMounted.current) {
-      hasMounted.current = true;
-      return;
-    }
-
     setIsFetching((prev) => ({ ...prev, chartData: true, emails: true }));
     composeEmails(chartParams).then((data) => {
       setIsFetching((prev) => ({ ...prev, chartData: false, emails: false }));
@@ -171,11 +166,6 @@ export const DashboardProvider: React.FC<{
   }, [chartParams, emailParams]);
 
   useEffect(() => {
-    if (!hasMounted.current) {
-      hasMounted.current = true;
-      return;
-    }
-
     setIsFetching((prev) => ({ ...prev, applications: true }));
     composeApplications(applicationParams).then((data) => {
       setIsFetching((prev) => ({ ...prev, applications: false }));

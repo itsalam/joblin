@@ -144,7 +144,6 @@ export const Input = forwardRef<typeof motion.input, InputProps>((
   const [isEdited, setIsEdited] = useState<boolean>(false);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    console.log("keydown", event);
     if (event.key === "Enter") {
       // event.preventDefault(); // Prevent the default form submission behavior
       onSubmit?.(event);

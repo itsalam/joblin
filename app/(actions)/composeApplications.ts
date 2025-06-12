@@ -31,7 +31,6 @@ export const composeApplications = async (
     (pageIndex + 1) * MAX_APPLICATION_PAGE_SIZE + 1,
     groupIds.length
   );
-  console.log(firstIndex, lastIndex, groupIds.length);
   const fetchingIds = groupIds.slice(firstIndex, lastIndex);
 
   if (fetchingIds.length) {

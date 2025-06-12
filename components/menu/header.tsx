@@ -25,9 +25,11 @@ export const HeaderSection = ({
 const Header = ({
   children,
   className,
+  showBacking = true,
 }: {
   children?: ReactNode;
   className?: string;
+  showBacking?: boolean;
 }) => {
   const [sticking, setSticking] = useState(false);
   useEffect(() => {
@@ -62,7 +64,7 @@ const Header = ({
             className={cn(
               "flex justify-between items-center", // Layout, Flexbox & Grid
               "container h-12 transition-all duration-300", // Sizing, Transitions & Animation
-              sticking
+              showBacking || sticking
                 ? "border-zinc-200 dark:border-zinc-800"
                 : "bg-transparent border-transparent shadow-none",
               className

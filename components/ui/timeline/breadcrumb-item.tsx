@@ -1,7 +1,7 @@
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { cn } from "@/lib/utils";
-import { ApplicationStatus, GroupRecord } from "@/types";
+import { ApplicationStatus } from "@/types";
 import { Variants, motion } from "framer-motion";
 import {
   Ban,
@@ -13,7 +13,6 @@ import { ComponentProps, ComponentPropsWithoutRef, FC } from "react";
 import { BreadcrumbTooltip } from "./breadcrumb-tooltip";
 
 export type BreadCrumbItemProps = {
-  applicationData: Partial<GroupRecord>;
   emailData?: CategorizedEmail;
   editMode: boolean;
   isLast?: boolean;
@@ -60,7 +59,6 @@ export const BreadCrumbItem: FC<
   const {
     editMode,
     emailData,
-    applicationData,
     isLast = true,
     isLoading,
     index,
@@ -153,7 +151,7 @@ export const BreadCrumbItem: FC<
                   )}
                 />
                 <Line
-                  stroke={`url(#gradient-${applicationData.id}-${index})`}
+                  stroke={`url(#gradient-${emailData?.group_id}-${index})`}
                   strokeOpacity={1}
                   fillOpacity={1}
                   opacity={0}
@@ -213,7 +211,6 @@ export const BreadCrumbItem: FC<
         </motion.li>
       </TooltipTrigger>
       <BreadcrumbTooltip
-        applicationData={applicationData}
         emailData={emailData}
         status={status}
         editMode={editMode}
