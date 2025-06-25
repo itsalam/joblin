@@ -26,7 +26,7 @@ export const fetchRelevantEmails = async (
   applicationId: string,
   dateRange?: Date[]
 ): Promise<CategorizedEmail[]> => {
-  const cacheKey = `${username}-${dateRange?.[0]?.toISOString()}-${dateRange?.[1]?.toISOString()}`;
+  const cacheKey = `${applicationId}-${dateRange?.[0]?.toISOString()}-${dateRange?.[1]?.toISOString()}`;
   const now = Date.now();
   const cacheRes = cachedData.get(cacheKey);
   if (cacheRes && now < cacheRes.expiry) {
@@ -71,8 +71,6 @@ export const fetchRelevantEmails = async (
       ExpressionAttributeValues,
     };
   }
-
-  console.log("Querying emails with params:", queryCommand);
 
   const results = await dbClient.send(new QueryCommand(queryCommand), {}).then(
     (res) => {
@@ -144,6 +142,7 @@ const filterToFieldMap: Record<FilterType, keyof OpenSearchRecord> = {
   [FilterType.Company]: "company_title",
   [FilterType.Position]: "job_title",
   [FilterType.Subject]: "subject",
+  [FilterType.Group]: "group_id",
 };
 
 export const searchFromOS = cache(async (

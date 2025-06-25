@@ -2,18 +2,18 @@ import { TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { ArrowUpRight } from "lucide-react";
 import { FC } from "react";
-import { BreadCrumbItemProps } from "./breadcrumb-item";
+import { BreadCrumbItemProps } from "./helpers";
 
 type BreadCrumbTooltipProps = Pick<
   BreadCrumbItemProps,
-  "emailData" | "status" | "applicationData" | "editMode"
+  "emailData" | "status" | "editMode"
 >;
 
 export const CIRCLE_DURATION = 0.02;
 export const LINE_DURATION = 0.01;
 
 export const BreadcrumbTooltip: FC<BreadCrumbTooltipProps> = (props) => {
-  const { applicationData, editMode, emailData, status } = props;
+  const { editMode, emailData, status } = props;
   const postingUrl = null;
 
   const OpenLink = (props: { title: string; url?: string }) => (

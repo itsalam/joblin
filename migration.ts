@@ -1,9 +1,10 @@
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { S3Client } from "@aws-sdk/client-s3";
 import { Resource } from "sst";
 import { Readable } from "stream";
 
 const s3 = new S3Client({});
-// const dbClient = new DynamoDBClient({ region: "us-east-1" });
+const dbClient = new DynamoDBClient({ region: "us-east-1" });
 
 const bucketName = Resource["email-archive-s3"].bucketName;
 const s3Folder = "b4881488-6011-7094-4231-99f95f37fc1e/";

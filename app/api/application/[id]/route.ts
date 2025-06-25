@@ -3,8 +3,9 @@ import { GroupRecord } from "@/types";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { Resource } from "sst";
+import { deleteApplication } from "../route";
 
-async function handler(
+async function getHandler(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -35,5 +36,15 @@ async function handler(
   );
 }
 
-const GET = handlerFactory({ methods: ["GET"], handler });
-export { GET };
+async function deleteHandler(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const { cascadeDelete } = await req.json();
+  return deleteApplication({ id, cascadeDelete });
+}
+
+const GET = handlerFactory({ methods: ["GET"], handler: getHandler });
+const DELETE = handlerFactory({ methods: ["DELETE"], handler: deleteHandler });
+export { DELETE, GET };

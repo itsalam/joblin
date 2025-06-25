@@ -9,8 +9,6 @@ export default function CatchAllLogicPage() {
 
   useEffect(() => {
     // Perform any logic here
-    console.log("Slug params:", params);
-
     // Example: redirect to root
   }, [params, router]);
 

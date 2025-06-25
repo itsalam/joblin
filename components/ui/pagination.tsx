@@ -31,7 +31,7 @@ function PaginationContent({
     <ul
       data-slot="pagination-content"
       className={cn(
-        "flex flex-row gap-1 items-center",
+        "flex flex-row items-center",
         className
       )}
       {...props}
@@ -80,7 +80,7 @@ type PaginationLinkProps = {
 function PaginationLink({
   className,
   isActive,
-  size = "icon",
+  size = "default",
   ...props
 }: PaginationLinkProps) {
   return (
@@ -102,14 +102,16 @@ function PaginationLink({
 
 function PaginationPrevious({
   className,
+  size,
   ...props
 }: React.ComponentProps<typeof PaginationButton>) {
   return (
     <PaginationButton
       aria-label="Go to previous page"
-      size="default"
+      size={size}
       className={cn(
-        "gap-1 px-2.5 sm:pl-2.5",
+        "gap-1 px-2.5",
+        { "[font-size:0px]": size === "icon" },
         className
       )}
       {...props}
@@ -122,14 +124,16 @@ function PaginationPrevious({
 
 function PaginationNext({
   className,
+  size = "default",
   ...props
 }: React.ComponentProps<typeof PaginationButton>) {
   return (
     <PaginationButton
       aria-label="Go to next page"
-      size="default"
+      size={size}
       className={cn(
-        "gap-1 px-2.5 sm:pr-2.5",
+        "gap-1 px-2.5",
+        { "[font-size:0px]": size === "icon" },
         className
       )}
       {...props}

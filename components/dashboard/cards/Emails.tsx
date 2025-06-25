@@ -27,6 +27,7 @@ import {
   ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -34,19 +35,25 @@ import { EditApplicationBadge } from "../EditApplicationBadge";
 import { EditPopoverInput } from "../EditPopoverInput";
 import { LogoAvatar } from "../LogoAvatar";
 
-function Emails(props: { emails: CategorizedEmail[] }) {
-  const { setActiveEmail, activeEmail, isFetching, emails } = useDashboard();
+function Emails() {
+  const {
+    setActiveEmailIdx,
+    activeEmailIdx,
+    emails: emailsSWR,
+  } = useDashboard();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(15);
   const emailContainerRef = useRef<HTMLDivElement>(null);
   const hasFetched = useRef(false);
+  const isFetching = emailsSWR.isLoading;
+  const emails = emailsSWR.data?.emails || [];
 
   useEffect(() => {
-    hasFetched.current = hasFetched.current || isFetching["emails"];
-    if (isFetching["emails"]) {
+    hasFetched.current = hasFetched.current || isFetching;
+    if (isFetching) {
       setPage(0);
     }
-  }, [isFetching.emails]);
+  }, [isFetching]);
 
   const EmailListing = useCallback(({
     email,
@@ -99,6 +106,11 @@ function Emails(props: { emails: CategorizedEmail[] }) {
     );
   }, []);
 
+  const activeEmail = useMemo(() => {
+    if (activeEmailIdx === null || !emails[activeEmailIdx]) return undefined;
+    return emails[activeEmailIdx];
+  }, [activeEmailIdx, emails]);
+
   return (
     <Card
       className={"w-full border-zinc-200 p-0 dark:border-zinc-800 h-[540px]"}
@@ -110,7 +122,7 @@ function Emails(props: { emails: CategorizedEmail[] }) {
       >
         <ResizablePanel defaultSize={40} className="flex flex-col relative">
           <div className="flex items-center justify-between">
-            {(isFetching["emails"] || !hasFetched.current) && (
+            {(isFetching || !hasFetched.current) && (
               <Spinner className="ml-3" />
             )}
             <div className="flex items-center justify-end ml-auto">
@@ -145,22 +157,26 @@ function Emails(props: { emails: CategorizedEmail[] }) {
             className={cn(
               "flex-1 p-3 transition-opacity overflow-y-scroll",
               {
-                "opacity-25 pointer-none:":
-                  isFetching["emails"] || !hasFetched.current,
+                "opacity-25 pointer-none:": isFetching && !hasFetched.current,
               }
             )}
           >
             <div className="flex flex-col gap-3" ref={emailContainerRef}>
               {emails.slice(page * pageSize, (page + 1) * pageSize).map((
-                email
+                email,
+                i
               ) => {
                 return (
                   <EmailListing
-                    active={activeEmail?.id === email.id}
+                    active={
+                      !!(
+                        activeEmailIdx && emails[activeEmailIdx].id === email.id
+                      )
+                    }
                     email={email}
                     id={createSafeId(email.id)}
                     key={email.id}
-                    onClick={() => setActiveEmail(email)}
+                    onClick={() => setActiveEmailIdx(i)}
                   />
                 );
               })}
@@ -169,7 +185,7 @@ function Emails(props: { emails: CategorizedEmail[] }) {
         </ResizablePanel>
         <ResizableHandle />
         <ResizablePanel className="flex flex-col relative">
-          <EmailDetailPanel email={activeEmail ?? undefined} />
+          <EmailDetailPanel email={activeEmail} />
         </ResizablePanel>
       </ResizablePanelGroup>
     </Card>
@@ -260,8 +276,12 @@ const EmailDetailPanel = ({ email }: { email?: CategorizedEmail }) => {
   }, [emailContent]);
 
   const Avatar = useCallback(
-    (email: CategorizeEmailItem) => (
-      <LogoAvatar company={email.company_title} size={44} isLoading={loading} />
+    ({ email }: { email: CategorizedEmail }) => (
+      <LogoAvatar
+        company={email?.company_title}
+        size={44}
+        isLoading={loading}
+      />
     ),
     []
   );
@@ -270,14 +290,6 @@ const EmailDetailPanel = ({ email }: { email?: CategorizedEmail }) => {
     GroupRecord,
     "company_title" | "job_title" | "id"
   >;
-
-  const groupRecordData = email
-    ? {
-        company_title: email.company_title,
-        job_title: email.job_title,
-        id: email.group_id,
-      }
-    : {};
 
   const suggestApplications = useCallback(
     async (searchTerm?: string) => {
@@ -289,7 +301,7 @@ const EmailDetailPanel = ({ email }: { email?: CategorizedEmail }) => {
       if (searchTerm) {
         searchParams.set("search_term", searchTerm);
       }
-      const url = `/api/applications/suggest?${searchParams.toString()}`;
+      const url = `/api/application/suggest?${searchParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         // TODO: Make a toast for this?
@@ -337,7 +349,7 @@ const EmailDetailPanel = ({ email }: { email?: CategorizedEmail }) => {
           id={email.id}
         >
           <div className="flex gap-3 items-center p-5">
-            <Avatar />
+            <Avatar email={email} />
 
             <div className="flex items-center gap-2 h-full relative justify-between w-full">
               <div className="flex flex-col gap-0.5 w-full">
@@ -357,9 +369,13 @@ const EmailDetailPanel = ({ email }: { email?: CategorizedEmail }) => {
                 </div>
                 <div className="flex items-center gap-2">
                   <EditPopoverInput<GroupRecordSubdata>
-                    initialValue={groupRecordData}
+                    initialValue={{
+                      company_title: email.company_title,
+                      job_title: email.job_title,
+                      id: email.group_id,
+                    }}
                     edit={edit}
-                    key={groupRecordData.id}
+                    key={email.group_id}
                     placeholder="Untitled Application"
                     className="text-xs text-zinc-600 dark:text-white"
                     fetchItems={suggestApplications}

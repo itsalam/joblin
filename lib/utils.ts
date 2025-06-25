@@ -23,8 +23,9 @@ export function handlerFactory({ methods, handler }: HandlerFactoryArgs) {
         return error;
       }
       console.error(error);
+      const errorCode = (error as any).code || 400;
       return new Response(JSON.stringify({ error: (error as any).message }), {
-        status: 400,
+        status: errorCode,
         headers: {
           "Content-Type": "application/json",
         },

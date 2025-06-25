@@ -1,4 +1,3 @@
-import { composeDashboardData } from "@/app/(actions)/composeDashboard";
 import { useDashboard } from "@/components/providers/DashboardProvider";
 import { Card } from "@/components/ui/card";
 import {
@@ -14,82 +13,39 @@ import { MAX_APPLICATION_PAGE_SIZE } from "@/lib/consts";
 import { cn } from "@/lib/utils";
 import { GroupRecord } from "@/types";
 import { AnimatePresence } from "motion/react";
-import { ComponentProps, useEffect, useRef, useState } from "react";
+import { ComponentProps, useEffect, useMemo, useRef, useState } from "react";
 import { TableRow } from "./ApplicationRow";
 import { ApplicationDragProvider } from "./provider";
 
+const sortKeyFunctions: Partial<
+  Record<keyof GroupRecord, (r1: GroupRecord, r2: GroupRecord) => number>
+> = {
+  last_updated: (r1, r2) => {
+    if (r1.last_updated === undefined || r2.last_updated === undefined)
+      return 0;
+    return (
+      new Date(r1.last_updated).getTime() - new Date(r2.last_updated).getTime()
+    );
+  },
+};
+
 const ApplicationList = () => {
-  const { applications, setApplications, params, maxApplications, setParams } =
-    useDashboard();
+  const { applications: applicationsSWR, params, setParams } = useDashboard();
   const container = useRef<HTMLDivElement>(null);
-  const [loadedApplications, setLoadedApplications] =
-    useState<GroupRecord[]>(applications);
+  const [loadedApplications, setLoadedApplications] = useState<GroupRecord[]>(
+    applicationsSWR.data ?? []
+  );
   const [draggedApplications, setDraggedApplications] = useState<GroupRecord[]>(
     []
   );
   const page = params.applicationPageIndex || 0;
-  const [sortKey, setSortKey] = useState<{
-    sortFunc?: (r1: GroupRecord, r2: GroupRecord) => number;
-    key?: keyof GroupRecord;
-  }>({ key: "company_title" });
+
+  const maxApplications = useRef(applicationsSWR.maxApplications || 0);
 
   useEffect(() => {
-    const uniqueApps = applications.filter((a) => {
-      return !loadedApplications.find((la) => la.id === a.id);
-    });
-    console.log({ uniqueApps, applications, loadedApplications });
-    setLoadedApplications(Array.from([...loadedApplications, ...uniqueApps]));
-  }, [applications]);
-
-  useEffect(() => {
-    composeDashboardData(params, true).then((data) => {
-      setApplications(data.applications || []);
-      maxApplications.current = data.maxApplications ?? 1;
-    });
-  }, [params]);
-
-  const shift = (id: string, direction: "up" | "down") => {
-    const index = loadedApplications.findIndex((u) => u.id === id);
-    let applicationsCopy = [...loadedApplications];
-
-    if (direction === "up") {
-      if (index > 0) {
-        [applicationsCopy[index], applicationsCopy[index - 1]] = [
-          applicationsCopy[index - 1],
-          applicationsCopy[index],
-        ];
-      }
-    } else {
-      if (index < applicationsCopy.length - 1) {
-        [applicationsCopy[index], applicationsCopy[index + 1]] = [
-          applicationsCopy[index + 1],
-          applicationsCopy[index],
-        ];
-      }
-    }
-
-    setApplications(applicationsCopy);
-  };
-
-  const useSortKey = ({
-      key,
-      sortFunc,
-    }: {
-      key?: keyof GroupRecord;
-      sortFunc?: (r1: GroupRecord, r2: GroupRecord) => number;
-    }) =>
-    (a: GroupRecord, b: GroupRecord) => {
-      if (sortFunc) {
-        return sortFunc(a, b);
-      }
-      if (key) {
-        if (a[key] === undefined || b[key] === undefined) return 0;
-        if (a[key] < b[key]) return -1;
-        if (a[key] > b[key]) return 1;
-        return 0;
-      }
-      return 0;
-    };
+    setLoadedApplications(Array.from([...(applicationsSWR.data ?? [])]));
+    maxApplications.current = applicationsSWR.maxApplications || 0;
+  }, [applicationsSWR.data]);
 
   const PaginationItem = ({
     className,
@@ -112,91 +68,76 @@ const ApplicationList = () => {
     maxApplications.current
   );
 
-  const displayedApplications = loadedApplications
-    .slice(firstIndex, lastIndex)
-    .filter(
-      (a) =>
-        draggedApplications.length === 0 ||
-        !draggedApplications.find((d) => d.id === a.id)
-    );
+  const displayedApplications = useMemo(() => {
+    return [
+      ...loadedApplications.filter(
+        (a) =>
+          draggedApplications.length === 0 ||
+          !draggedApplications.find((d) => d.id === a.id)
+      ),
+    ];
+  }, [loadedApplications, draggedApplications, params.applicationSortKey]);
 
   const Pages = () => {
     const maxPages = Math.ceil(
       maxApplications.current / MAX_APPLICATION_PAGE_SIZE
     );
 
+    const PageButton = ({ page }: { page: number }) => (
+      <PaginationItem>
+        <PaginationButton
+          className={cn(
+            "font-[inherit] uppercase [font-size:inherit] px-1",
+            { "bg-accent/70": page === (params.applicationPageIndex ?? 0) + 1 }
+          )}
+          onClick={() => {
+            setParams((prev) => ({
+              ...prev,
+              applicationPageIndex: page - 1,
+            }));
+          }}
+        >
+          {page}
+        </PaginationButton>
+      </PaginationItem>
+    );
+
+    const PageEllipsis = () => (
+      <PaginationItem>
+        <PaginationEllipsis
+          className={cn(
+            "w-auto font-[inherit] uppercase [font-size:inherit] px-0.5"
+          )}
+        />
+      </PaginationItem>
+    );
+
     return (
       <div className="text-start font-medium bg-card">
         <Pagination>
           <PaginationContent>
-            <span className="w-full text-nowrap normal-case">{`${firstIndex + 1} - ${lastIndex} of ${maxApplications.current}`}</span>
+            <span className="w-full text-nowrap normal-case px-1">{`${firstIndex + 1} - ${lastIndex} of ${maxApplications.current}`}</span>
             <PaginationItem>
               <PaginationPrevious
                 size="icon"
                 className={cn(
-                  "w-full font-[inherit] uppercase [font-size:inherit]"
+                  "w-full font-[inherit] uppercase"
                 )}
+                disabled={page <= 0}
               />
             </PaginationItem>
-            <PaginationItem>
-              <PaginationButton
-                className={cn(
-                  "font-[inherit] uppercase [font-size:inherit]"
-                )}
-              >
-                1
-              </PaginationButton>
-            </PaginationItem>
-            {(page > 1 || maxPages > 2) && (
-              <PaginationItem>
-                <PaginationEllipsis
-                  className={cn(
-                    "font-[inherit] uppercase [font-size:inherit]"
-                  )}
-                />
-              </PaginationItem>
-            )}
-
-            {page > 1 && page < maxPages && (
-              <PaginationItem>
-                <PaginationButton
-                  className={cn(
-                    "font-[inherit] uppercase [font-size:inherit]"
-                  )}
-                >
-                  {page}
-                </PaginationButton>
-              </PaginationItem>
-            )}
-
-            {page !== 0 && maxPages - page > 1 && (
-              <PaginationItem>
-                <PaginationEllipsis
-                  className={cn(
-                    "font-[inherit] uppercase [font-size:inherit]"
-                  )}
-                />
-              </PaginationItem>
-            )}
-
-            {maxPages > 1 && (
-              <PaginationItem>
-                <PaginationButton
-                  className={cn(
-                    "font-[inherit] uppercase [font-size:inherit]"
-                  )}
-                >
-                  {maxPages}
-                </PaginationButton>
-              </PaginationItem>
-            )}
-
+            <PageButton page={1} />
+            {(page > 1 || maxPages > 2) && <PageEllipsis />}
+            {page > 1 && page < maxPages && <PageButton page={page} />}
+            {page !== 0 && maxPages - page > 1 && <PageEllipsis />}
+            {maxPages > 1 && <PageButton page={maxPages} />}
             <PaginationItem>
               <PaginationNext
                 size="icon"
                 className={cn(
-                  "w-full font-[inherit] uppercase [font-size:inherit]"
+                  "w-full font-[inherit] uppercase"
                 )}
+                disabled={page >= maxPages - 1}
                 onClick={() => {
                   setParams((prev) => ({
                     ...prev,
@@ -230,7 +171,7 @@ const ApplicationList = () => {
         }}
       >
         <table className="w-full">
-          <thead className="border-b-[1px] border-slate-200 text-slate-400 text-xs uppercase h-9 sticky top-0 bg-card z-50 w-full font-medium">
+          <thead className="border-b-[1px] border-slate-200 text-slate-400 text-xs uppercase h-9 sticky top-0 bg-card z-40 w-full font-medium">
             <tr>
               <th className="pl-7 text-start font-medium">Company</th>
               <th className="text-start font-medium">Status</th>
@@ -245,21 +186,21 @@ const ApplicationList = () => {
           </thead>
 
           <AnimatePresence>
-            {displayedApplications
-              .sort((a, b) => useSortKey(sortKey)(a, b))
-              .map((application, index) => {
-                return (
-                  <TableRow
-                    key={application.id}
-                    applicationRecord={application}
-                    index={index}
-                    shift={shift}
-                    onEditToggle={(edit) => {
-                      !edit && setDraggedApplications([]);
-                    }}
-                  />
-                );
-              })}
+            {displayedApplications.map((application, index) => {
+              return (
+                <TableRow
+                  key={application.id}
+                  applicationRecord={application}
+                  index={index}
+                  isFetching={
+                    applicationsSWR.isLoading && applicationsSWR.presorted
+                  }
+                  onEditToggle={(edit) => {
+                    !edit && setDraggedApplications([]);
+                  }}
+                />
+              );
+            })}
           </AnimatePresence>
         </table>
       </ApplicationDragProvider>

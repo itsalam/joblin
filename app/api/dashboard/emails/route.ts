@@ -1,26 +1,38 @@
-"use server";
-
 import { authOptions } from "@/lib/auth";
 import { DateRanges } from "@/lib/consts";
+import { handlerFactory } from "@/lib/utils";
 import { ApplicationStatus, DashboardParams } from "@/types";
-import { ResponseError } from "@opensearch-project/opensearch/lib/errors.js";
 import { getServerSession } from "next-auth";
-import { cache } from "react";
-import { FetchData } from "../../components/providers/DashboardProvider";
 import {
   getIntervalDates,
   groupByDateRange,
   searchFromOS,
-} from "../api/helpers";
+} from "../../helpers";
 
-export const composeEmails = cache(async ({
-  dateKey = DateRanges.Monthly,
-  absolute,
-  searchTerm,
-  filters,
-}: DashboardParams): Promise<FetchData> => {
+import { ResponseError } from "@opensearch-project/opensearch/lib/errors.js";
+
+async function handler(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const dashboardParams = [...searchParams.entries()].reduce<DashboardParams>((
+    acc,
+    [key, value]
+  ) => {
+    try {
+      acc[key as keyof DashboardParams] = JSON.parse(value);
+    } catch (e) {
+      acc[key as keyof DashboardParams] = value as any;
+    }
+    return acc;
+  }, {});
+
+  const {
+    dateKey = DateRanges.Monthly,
+    absolute,
+    searchTerm,
+    filters,
+  } = dashboardParams;
+
   const session = await getServerSession(authOptions);
-
   const dates = getIntervalDates(dateKey, absolute);
   const buckets: Record<
     string,
@@ -79,5 +91,19 @@ export const composeEmails = cache(async ({
     ),
   }));
 
-  return { emails, chartData };
-});
+  return new Response(
+    JSON.stringify({
+      emails,
+      chartData,
+    }),
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+}
+
+const GET = handlerFactory({ methods: ["GET"], handler });
+export { GET };

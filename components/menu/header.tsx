@@ -55,7 +55,7 @@ const Header = ({
       <div className="p-1.5 px-3 sticky top-0 z-10" key="header">
         <HeaderSection
           className={cn(
-            "top-0 left-0 z-50 w-full opacity-0", // Layout, Sizing, Effects
+            "top-0 left-0 z-40 w-full opacity-0", // Layout, Sizing, Effects
             "mb-0 pb-1.5 animate-fade-in border-b [--animation-delay:600ms]", // Margin, Etc.
             sticking ? "border-transparent" : ""
           )}

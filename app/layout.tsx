@@ -29,8 +29,6 @@ export default async function RootLayout({
   dashboard: React.ReactNode;
   emails: React.ReactNode;
 }>) {
-  console.log("RootLayout", { dashboard, emails });
-
   const session = await getServerSession(authOptions);
   return (
     <Providers>

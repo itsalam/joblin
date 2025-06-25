@@ -1,203 +1,178 @@
-import { ApplicationStatusColor } from "@/components/helpers";
 import { useDashboard } from "@/components/providers/DashboardProvider";
-import { setEmailItem } from "@/lib/clientCache";
 import { cn } from "@/lib/utils";
-import { ApplicationStatus, Group, GroupRecord } from "@/types";
+import { ApplicationStatus, FilterType, Group } from "@/types";
 import { motion } from "framer-motion";
-import { FC, SVGProps, useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
 import { TooltipProvider } from "../tooltip";
+import { BreadCrumbItem } from "./breadcrumb-item";
 import {
-  BreadCrumbItem,
+  BASE_URL,
+  BreadCrumbData,
+  CategorizedEmailDisplayData,
   CIRCLE_DURATION,
+  FetchData,
+  getStepColor,
+  groupToArr,
   LINE_DURATION,
-} from "./breadcrumb-item";
-
-const getStepColor = (id?: string, status?: ApplicationStatus) => {
-  return id && status
-    ? (ApplicationStatusColor[status] ?? "var(--color-gray-300)")
-    : "var(--color-gray-300)";
-};
-
-type FetchData = { emails: CategorizedEmail[] };
-
-type BreadCrumbData = {
-  email?: CategorizedEmail;
-  id?: string;
-  application_status?: ApplicationStatus;
-  sent_on?: string;
-};
-
-const baseURL = "/api/applications/emails";
+} from "./helpers";
+import { LinearGradient } from "./shapes";
 
 const TimelineBreadCrumbs = (props: {
   expand: boolean;
-  applicationData: Partial<GroupRecord>;
+  id: string;
+  emailIds: Group<ApplicationStatus, string[]>;
   editMode: boolean;
 }) => {
   const { focusToEmail } = useDashboard();
-  const { applicationData, editMode, expand } = props;
-  const [emailIds, setEmailIds] = useState<Group<ApplicationStatus, string[]>>(
-    applicationData.email_ids ?? {}
+  const { emailIds: emailIdsProp, editMode, expand, id } = props;
+  const [groupEmails, setGroupEmails] = useState<CategorizedEmailDisplayData[]>(
+    groupToArr(emailIdsProp).map(({ value, status }) => ({
+      id: value,
+      application_status: status,
+    }))
   );
-  const [groupEmails, setGroupEmails] = useState<CategorizedEmail[]>([]);
-  const [isFetching, setIsFetching] = useState(false);
-  const initialUpdate = useRef<boolean>(false);
-  const { mutate, isLoading, isValidating } = useSWR(
-    expand ? [baseURL, applicationData.id] : null,
-    ([e, applicationId]) => {
-      setIsFetching(true);
+
+  const { data, mutate, isLoading, isValidating } = useSWR(
+    [BASE_URL, id],
+    ([baseUrl, applicationId]) => {
       const searchParams = new URLSearchParams({
         applicationId: applicationId ?? "",
       });
-
-      const url = `${e}?${searchParams.toString()}`;
-      console.log({ url });
-      return fetch(url).then((x) => {
-        return x.json() as Promise<FetchData>;
-      });
+      const url = `${baseUrl}?${searchParams.toString()}`;
+      return fetch(url)
+        .then((x) => {
+          return x.json() as Promise<FetchData>;
+        })
+        .then((data) => data);
     },
     {
-      onSuccess: (data) => {
-        let newEmails: CategorizedEmail[] = [];
-        console.log(data);
-        setIsFetching(false);
-        data.emails.forEach((email) => {
-          setEmailItem(email.id, email);
-          newEmails.push(email);
-        });
-        setGroupEmails((prev) => {
-          const uniqueEmails = new Map<string, CategorizedEmail>(
-            [...prev, ...newEmails].map((e) => [e.id, e])
-          );
-
-          console.log({ uniqueEmails });
-          const res = Array.from(uniqueEmails.values()).sort((a, b) => {
-            return (
-              new Date(a.sent_on).getTime() - new Date(b.sent_on).getTime()
-            );
-          });
-
-          console.log({ res });
-          return res;
-        });
-      },
-      onError: (error) => {
-        console.error("Error fetching emails:", error);
-        setIsFetching(false);
-      },
+      revalidateOnMount: true,
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
-      dedupingInterval: 5000,
+      // refreshInterval: 3000,
+      // dedupingInterval: 5000,
     }
   );
 
-  const timelineItems = useMemo(() => {
-    let timelineItems: BreadCrumbData[] = groupEmails.map((email) => ({
-      email,
-      application_status: email.application_status,
-    }));
-
-    if (
-      !timelineItems.some(
-        (email) =>
-          email.application_status === ApplicationStatus.ApplicationAcknowledged
-      )
-    ) {
-      timelineItems.unshift({
-        application_status: ApplicationStatus.ApplicationAcknowledged,
+  useEffect(() => {
+    setGroupEmails((prev) => {
+      const updatedEmails = prev.map((email) => {
+        const newEmail = data?.emails.find((e) => e.id === email.id);
+        return { ...email, ...newEmail };
       });
-    }
-    if (editMode) {
-      timelineItems.push({});
-    }
-    return timelineItems;
-  }, [groupEmails, editMode]);
-
-  const Items = useCallback(() => {
-    return timelineItems.map(({ application_status, email }, i) => {
-      return (
-        <BreadCrumbItem
-          onClick={() => focusToEmail(email?.id ?? "")}
-          emailData={email}
-          stepColor={getStepColor(email?.id, application_status)}
-          key={`${i}-${email?.id ?? application_status}`}
-          editMode={editMode}
-          isLoading={isFetching || isLoading || isValidating}
-          status={application_status}
-          isLast={i === timelineItems.length - 1}
-          index={i}
-        />
+      const newEmails =
+        data?.emails.filter((email) => !prev.some((e) => e.id === email.id)) ||
+        [];
+      const uniqueEmails = new Map<string, CategorizedEmailDisplayData>(
+        [...updatedEmails, ...newEmails].map((e) => [e.id, e])
       );
+
+      const res = Array.from(uniqueEmails.values()).sort((a, b) => {
+        return a.sent_on && b.sent_on
+          ? new Date(a.sent_on).getTime() - new Date(b.sent_on).getTime()
+          : a.application_status.localeCompare(b.application_status) || 0;
+      });
+      return res;
     });
-  }, [timelineItems, editMode, isFetching, isLoading, isValidating]);
+  }, [data]);
+
+  const Items = useCallback(
+    ({ editMode }: { editMode: boolean }) => {
+      let timelineItems: BreadCrumbData[] = groupEmails.map((email) => ({
+        displayData: email,
+        application_status: email.application_status,
+      }));
+
+      if (
+        editMode &&
+        !timelineItems.some(
+          (email) =>
+            email.application_status ===
+            ApplicationStatus.ApplicationAcknowledged
+        )
+      ) {
+        timelineItems.unshift({
+          application_status: ApplicationStatus.ApplicationAcknowledged,
+        });
+      } else if (editMode) {
+        timelineItems.push({});
+      }
+      return timelineItems.map((
+        { application_status, displayData: email },
+        i
+      ) => {
+        return (
+          <BreadCrumbItem
+            onClick={() =>
+              email &&
+              focusToEmail(
+                email.id,
+                email?.group_id
+                  ? [{ category: FilterType.Group, value: email?.group_id }]
+                  : []
+              )
+            }
+            emailData={email}
+            stepColor={getStepColor(email?.id, application_status)}
+            key={`${i}-${email?.id ?? application_status}-${isLoading ? "loading" : ""}`}
+            editMode={editMode}
+            isLoading={isLoading || isValidating}
+            status={application_status}
+            isLast={i === timelineItems.length - 1}
+            index={i}
+          />
+        );
+      });
+    },
+    [groupEmails, isLoading, isValidating]
+  );
 
   const Gradients = useCallback(() => {
-    return timelineItems.map(({ email, application_status }, i) => {
+    return groupEmails.map((email, i) => {
       return (
         <LinearGradient
-          id={`gradient-${applicationData.id}-${i}`}
-          key={`gradient-${applicationData.id}-${i}`}
+          id={`gradient-${id}-${i}`}
+          key={`gradient-${id}-${i}`}
           steps={
             [
-              getStepColor(email?.id, application_status),
+              getStepColor(email?.id, email.application_status),
               getStepColor(
-                timelineItems[i + 1]?.email?.id,
-                timelineItems[i + 1]?.application_status
+                groupEmails[i + 1]?.id,
+                groupEmails[i + 1]?.application_status
               ),
             ].filter(Boolean) as string[]
           }
         />
       );
     });
-  }, [timelineItems]);
+  }, [groupEmails]);
 
   return (
     <motion.ol
       layout="preserve-aspect"
       className={cn(
-        "flex flex-col justify-center w-min"
+        "flex flex-col justify-items-start w-min"
       )}
       transition={{
         staggerChildren: LINE_DURATION + CIRCLE_DURATION * 10,
       }}
-      variants={{ visible: { opacity: 1 }, hidden: { opacity: 0 } }}
-      initial="hidden"
-      animate={"visible"}
+      variants={{
+        visible: { opacity: [null, 1] },
+        hidden: { opacity: [null, 0] },
+      }}
+      initial={expand ? false : "hidden"}
+      animate={expand ? "visible" : "hidden"}
     >
-      <svg className="absolute z-[-20] h-0 w-0 opacity-0">
+      <svg className="h-0 w-0">
         <defs>
           <Gradients />
         </defs>
       </svg>
       <TooltipProvider>
-        <Items />
+        <Items editMode={editMode} />
       </TooltipProvider>
     </motion.ol>
-  );
-};
-
-const LinearGradient: FC<
-  Partial<SVGProps<SVGLinearGradientElement>> & { steps: string[] }
-> = (props) => {
-  const { steps, ...otherProps } = props;
-  return (
-    <linearGradient
-      x1="0"
-      y1="0"
-      x2="0"
-      y2="28"
-      gradientUnits="userSpaceOnUse"
-      {...otherProps}
-    >
-      {steps.map((stopColor, i, arr) => (
-        <stop
-          offset={i / (Math.max(arr.length, 2) - 1)}
-          key={i}
-          style={{ stopColor }}
-        />
-      ))}
-    </linearGradient>
   );
 };
 

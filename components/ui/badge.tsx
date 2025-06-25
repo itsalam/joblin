@@ -4,6 +4,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { ApplicationStatus } from "@/types";
 import { ApplicationStatusStyle } from "../helpers";
+import { Skeleton } from "./skeleton";
 
 const badgeVariants = cva(
   "inline-flex items-center rounded-md border px-2 py-1 text-xs font-semibold transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
@@ -39,18 +40,32 @@ export function ApplicationBadge({
   status,
   className,
   children,
+  isLoading,
   ...props
-}: BadgeProps & { status: ApplicationStatus }) {
+}: BadgeProps & { status?: ApplicationStatus; isLoading?: boolean }) {
   return (
     <Badge
       variant="outline"
       {...props}
-      className={cn(ApplicationStatusStyle[status], className)}
+      className={cn(
+        isLoading
+          ? "p-0 border-none"
+          : status
+            ? ApplicationStatusStyle[status]
+            : "text-gray-300 border-gray-300 bg-gray-100 opacity-80",
+        className
+      )}
     >
-      {status
-        .toLocaleUpperCase()
-        .slice(0, 1)
-        .concat(status.slice(1).toLocaleLowerCase())}
+      {isLoading ? (
+        <Skeleton className="w-14 h-6" />
+      ) : status ? (
+        status
+          .toLocaleUpperCase()
+          .slice(0, 1)
+          .concat(status.slice(1).toLocaleLowerCase())
+      ) : (
+        "Archived"
+      )}
       {children}
     </Badge>
   );

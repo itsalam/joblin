@@ -47,6 +47,7 @@ export type GroupDetails = {
   last_updated?: string;
   last_email_subject?: string;
   last_status?: ApplicationStatus;
+  created_at?: string;
 };
 
 export type GroupRecord = GroupDetails & {
@@ -70,6 +71,7 @@ export enum FilterType {
   Company = "Company",
   Position = "Position",
   Id = "Id",
+  Group = "GroupId",
 }
 
 export type Filter = {
@@ -95,5 +97,8 @@ export type DashboardParams = {
   searchTerm?: string;
   filters?: Filter[];
   displayedStatistics?: StatisticKey[];
+  emailPageIndex?: number;
+  emailSortKey?: keyof CategorizedEmail;
   applicationPageIndex?: number;
+  applicationSortKey?: keyof GroupRecord;
 };

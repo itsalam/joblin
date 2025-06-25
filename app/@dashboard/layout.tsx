@@ -3,7 +3,6 @@ import { DateRanges } from "@/lib/consts";
 import { DashboardParams, StatisticKey } from "@/types";
 import { getServerSession } from "next-auth";
 import { cookies } from "next/headers";
-import { composeDashboardData } from "../(actions)/composeDashboard";
 import { DashboardProvider } from "../../components/providers/DashboardProvider";
 
 export default async function DashboardLayout({
@@ -34,18 +33,13 @@ export default async function DashboardLayout({
     dateKey: DateRanges.Monthly,
     filters: [],
     applicationPageIndex: 0,
+    applicationSortKey: "last_updated",
+    emailPageIndex: 0,
+    emailSortKey: "sent_on",
   };
-
-  console.log(cookiesParams);
-
-  const { emails, chartData } = await composeDashboardData({
-    ...defaultDashboardParams,
-    ...cookiesParams,
-  });
 
   return (
     <DashboardProvider
-      fetchData={{ emails, chartData }}
       initalDashboardParams={{ ...defaultDashboardParams, ...cookiesParams }}
     >
       {children}

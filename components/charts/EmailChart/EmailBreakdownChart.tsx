@@ -70,21 +70,15 @@ export const StatisticMap: Record<StatisticKey, StatisticDisplay> = {
   },
 };
 
-function CategorizedEmailChart({
-  emails,
-  isFetching,
-  chartData,
-}: {
-  emails: CategorizedEmail[];
-  chartData: ApplicationData;
-  isFetching: boolean;
-}) {
-  const { params: options } = useDashboard();
+function CategorizedEmailChart() {
+  const { params: options, emails: emailsSWR } = useDashboard();
   const hasFetched = useRef(false);
+  const isLoading = emailsSWR.isLoading;
+  const emails = emailsSWR.data?.emails ?? [];
 
   useEffect(() => {
-    hasFetched.current = hasFetched.current || isFetching;
-  }, [isFetching]);
+    hasFetched.current = hasFetched.current || isLoading;
+  }, [isLoading]);
 
   const StatisticCard = ({ statistic }: { statistic: StatisticDisplay }) => {
     const Icon = statistic.icon ?? Mail;
@@ -94,7 +88,7 @@ function CategorizedEmailChart({
           "flex gap-3 items-center p-4", // Layout, Flexbox & Grid, Spacing
           "bg-linear-to-b rounded-lg from-white via-white to-transparent", // Backgrounds, Borders, Etc.
           "dark:from-zinc-900 dark:to-transparent",
-          { "opacity-25": isFetching || !hasFetched.current }
+          { "opacity-25": isLoading || !hasFetched.current }
         )}
       >
         <div className="flex h-12 w-12 items-center justify-center rounded-full border border-zinc-200 text-4xl dark:border-zinc-800 dark:text-white">
@@ -131,10 +125,10 @@ function CategorizedEmailChart({
         <div
           className={cn(
             "w-full h-full transition-opacity",
-            { "opacity-25": isFetching || !hasFetched.current }
+            { "opacity-25": isLoading || !hasFetched.current }
           )}
         >
-          <LineChart chartData={chartData} />
+          <LineChart chartData={emailsSWR.data?.chartData} />
           {!hasFetched.current && (
             <div className="absolute h-full w-full flex items-center justify-center">
               <Spinner size="large" className="h-full" />

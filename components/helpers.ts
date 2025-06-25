@@ -176,12 +176,19 @@ const toBase64 = (str: string) =>
     ? Buffer.from(str).toString("base64")
     : window.btoa(str);
 
-export function useCachedLogo(company: string, size = 48, isLoading = false) {
+export function useCachedLogo(company?: string, size = 48, isLoading = false) {
   const baseURL = "/api/logo";
   const fallbackUrl = `data:image/svg+xml;base64,${toBase64(shimmerWithLetter(size, size, (company ?? "").slice(0, 1).toLocaleUpperCase(), isLoading))}`;
-  const [url, setUrl] = useState<string>(logoCache.get(company) ?? fallbackUrl);
+  const [loading, setLoading] = useState(false);
+  const [url, setUrl] = useState<string>(
+    company && logoCache.has(company) ? logoCache.get(company)! : fallbackUrl
+  );
+
   const [error, setError] = useState<string | null>(null);
   const fetchLogoUrl = async () => {
+    if (!company) {
+      return fallbackUrl; // Return the fallback URL
+    }
     try {
       // if (logoUrl) return; // already cached or set
       const searchParams = new URLSearchParams({
@@ -207,6 +214,10 @@ export function useCachedLogo(company: string, size = 48, isLoading = false) {
   };
 
   useEffect(() => {
+    if (!company) {
+      setUrl(fallbackUrl);
+      return;
+    }
     if (logoCache.has(company)) return;
 
     fetchLogoUrl().then((logo) => {

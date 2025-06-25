@@ -2,56 +2,32 @@ import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { cn } from "@/lib/utils";
 import { ApplicationStatus } from "@/types";
-import { Variants, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Ban,
   CheckCircle2Icon,
   CircleEllipsis,
   CircleFadingPlus,
 } from "lucide-react";
-import { ComponentProps, ComponentPropsWithoutRef, FC } from "react";
+import {
+  ComponentProps,
+  ComponentPropsWithoutRef,
+  FC,
+  useCallback,
+} from "react";
 import { BreadcrumbTooltip } from "./breadcrumb-tooltip";
-
-export type BreadCrumbItemProps = {
-  emailData?: CategorizedEmail;
-  editMode: boolean;
-  isLast?: boolean;
-  isLoading: boolean;
-  index: number;
-  status?: ApplicationStatus;
-  stepColor: string;
-};
-
-type MotionCustomProps = {
-  index: number;
-  isLine?: boolean;
-};
-
-export const CIRCLE_DURATION = 0.02;
-export const LINE_DURATION = 0.01;
-
-const draw = {
-  hover: ({ isLine }: MotionCustomProps) => ({
-    scale: isLine ? 0.95 : 1.2,
-  }),
-
-  hidden: { pathLength: [null, 0], opacity: [null, 0] },
-  visible: ({ index, isLine }: MotionCustomProps) => {
-    const delay =
-      0.1 + index * (0.05 + CIRCLE_DURATION) + (isLine ? CIRCLE_DURATION : 0);
-    return {
-      pathLength: [null, 1],
-      opacity: [null, 1],
-      transition: {
-        pathLength: {
-          delay: delay,
-          duration: isLine ? LINE_DURATION : CIRCLE_DURATION,
-        },
-        opacity: { delay, duration: 0.3 },
-      },
-    };
-  },
-} as Variants;
+import {
+  BreadCrumbItemProps,
+  CIRCLE_DURATION,
+  CIRCLE_RADIUS,
+  CIRCLE_STROKE_WIDTH,
+  draw,
+  LINE_STROKE_WIDTH,
+  LOADING_LINE_DURATION,
+  LOADING_SPIN_DURATION,
+  MIN_SPACING,
+} from "./helpers";
+import { Circle, Line } from "./shapes";
 
 export const BreadCrumbItem: FC<
   BreadCrumbItemProps & ComponentProps<typeof motion.li>
@@ -75,20 +51,126 @@ export const BreadCrumbItem: FC<
   const CrumbIcon = motion.create(crossOrCheck ? Ban : CheckCircle2Icon);
   const DisplayIcon = (props: ComponentPropsWithoutRef<typeof EditIcon>) =>
     editMode ? <EditIcon {...props} /> : !id ? <></> : <CrumbIcon {...props} />;
-  const onClick = () => {
-    // setEditingStatus(status);
-  };
+
+  const BreadcrumbSVG = useCallback(() => {
+    return (
+      <motion.div
+        className={cn(
+          "flex grow-0 justify-center items-center"
+        )}
+        style={{
+          paddingTop: `${CIRCLE_RADIUS / 2}px`,
+        }}
+      >
+        <DisplayIcon
+          className="absolute z-20 text-white"
+          size={18}
+          variants={{ hover: { scale: 1.1 }, initial: { scale: 1.0 } }}
+        />
+        <motion.svg
+          className={cn(
+            "overflow-visible relative z-10 justify-center items-center", // Layout, Flexbox & Grid
+            "w-6 h-6" // Sizing
+          )}
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <Circle className="text-gray-400" />
+          <Circle
+            initial={false}
+            variants={draw}
+            custom={{ index }}
+            fill={id ? "currentColor" : "transparent"}
+          />
+          {isLoading && (
+            <Circle
+              className="text-gray-200"
+              strokeDasharray={2 * Math.PI * CIRCLE_RADIUS}
+              strokeDashoffset={(Math.PI * CIRCLE_RADIUS) / 4}
+              animate={{ rotate: 360 }}
+              transition={{
+                repeat: Infinity,
+                duration: LOADING_SPIN_DURATION,
+                ease: "linear",
+                delay:
+                  index * (LOADING_SPIN_DURATION / 2 + LOADING_LINE_DURATION),
+              }}
+            />
+          )}
+        </motion.svg>
+        {!isLast && (
+          <motion.svg
+            className={cn(
+              "overflow-visible absolute top-full z-0 justify-center", // Layout, Flexbox & Grid
+              "items-center",
+              "w-full h-6 translate-x-1/2 pointer-events-none", // Sizing, Transforms, Interactivity
+              "pr-[0px] pl-[0px]" // Etc.
+            )}
+            style={{
+              width: `${CIRCLE_RADIUS * 2 - LINE_STROKE_WIDTH}px`,
+              height: `calc(100% - ${CIRCLE_RADIUS * 2 + CIRCLE_STROKE_WIDTH}px)`,
+              top: `${CIRCLE_RADIUS * 2.5 + CIRCLE_STROKE_WIDTH / 2}px`,
+            }}
+            preserveAspectRatio="none"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <Line
+              className={cn(
+                "text-gray-200"
+              )}
+            />
+            <Line
+              stroke={
+                id
+                  ? `url(#gradient-${emailData?.group_id}-${index})`
+                  : "transparent"
+              }
+              strokeOpacity={1}
+              fillOpacity={1}
+              opacity={0}
+              pathLength={0}
+              initial={false}
+              variants={draw}
+              custom={{ index, isLine: true }}
+            />
+            {isLoading && (
+              <Line
+                className="text-gray-300"
+                pathLength={1} // Normalize to [0, 1] range
+                strokeDashoffset={0}
+                animate={{
+                  pathLength: [1, 0],
+                  strokeDashoffset: [0.0, 1.0],
+                }}
+                transition={{
+                  repeat: Infinity,
+                  duration: LOADING_LINE_DURATION,
+                  ease: "linear",
+                  repeatDelay: LOADING_SPIN_DURATION,
+                  delay:
+                    LOADING_SPIN_DURATION / 2 +
+                    index * (LOADING_SPIN_DURATION + LOADING_LINE_DURATION),
+                }}
+              />
+            )}
+          </motion.svg>
+        )}
+      </motion.div>
+    );
+  }, [id, isLoading]);
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <motion.li
+          key={id || `new-${index}`}
           whileHover={"hover"}
           style={{
             color: stepColor,
           }}
           className={cn(
-            "flex flex-1 relative gap-4 items-center group py-2.5",
+            "flex flex-1 relative gap-4 items-start group",
             {
               "cursor-default": !editMode,
               "cursor-pointer": editMode || id,
@@ -101,72 +183,15 @@ export const BreadCrumbItem: FC<
           }}
           {...componentProps}
         >
-          <motion.div
-            className={cn(
-              "flex grow-0 justify-center items-center"
-            )}
-          >
-            <DisplayIcon
-              className="absolute z-20 text-white"
-              size={18}
-              variants={{ hover: { scale: 1.1 }, initial: { scale: 1.0 } }}
-            />
-            <motion.svg
-              className={cn(
-                "overflow-visible relative z-10 justify-center items-center", // Layout, Flexbox & Grid
-                "w-6 h-6" // Sizing
-              )}
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <Circle className="text-gray-400" />
-              <Circle
-                pathLength={0}
-                opacity={0}
-                variants={draw}
-                custom={{ index }}
-                fill={editMode || id ? "currentColor" : "transparent"}
-              />
-            </motion.svg>
-            {!isLast && (
-              <motion.svg
-                className={cn(
-                  "overflow-visible absolute top-full z-0", // Layout
-                  "justify-center items-center w-full h-6", // Flexbox & Grid, Sizing
-                  "translate-x-1/2 pointer-events-none", // Transforms, Interactivity
-                  "pr-[0px] pl-[0px]" // Etc.
-                )}
-                style={{
-                  width: "20px",
-                  height: "calc(100% - 20px)",
-                  top: "calc(50% + 12px)",
-                }}
-                preserveAspectRatio="none"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <Line
-                  className={cn(
-                    "text-gray-400"
-                  )}
-                />
-                <Line
-                  stroke={`url(#gradient-${emailData?.group_id}-${index})`}
-                  strokeOpacity={1}
-                  fillOpacity={1}
-                  opacity={0}
-                  pathLength={0}
-                  variants={draw}
-                  custom={{ index, isLine: true }}
-                />
-              </motion.svg>
-            )}
-          </motion.div>
+          <BreadcrumbSVG />
 
           <motion.div className="flex w-24 gap-4">
             <motion.div
-              className="flex flex-col justify-center"
+              className="flex flex-col justify-start"
               variants={{ hover: { scale: 1.05 } }}
+              style={{
+                minHeight: `${CIRCLE_RADIUS * 2 + (isLast ? 0 : MIN_SPACING)}px`,
+              }}
             >
               <p
                 className={cn(
@@ -198,7 +223,7 @@ export const BreadCrumbItem: FC<
               />
             )}
           </motion.div>
-          {emailData && (
+          {emailData?.subject && (
             <div>
               <p className="text-sm text-black line-clamp-1 w-sm">
                 {emailData?.subject}
@@ -216,34 +241,6 @@ export const BreadCrumbItem: FC<
         editMode={editMode}
       />
     </Tooltip>
-  );
-};
-
-const Circle: FC<ComponentProps<typeof motion.circle>> = (props) => {
-  return (
-    <motion.circle
-      cx="12"
-      cy="12"
-      r="12"
-      stroke="currentColor"
-      fill="transparent"
-      strokeWidth={3}
-      {...props}
-    />
-  );
-};
-
-const Line: FC<ComponentProps<typeof motion.line>> = (props) => {
-  return (
-    <motion.line
-      x1="0"
-      y1="0"
-      x2="0"
-      y2="28"
-      stroke="currentColor"
-      strokeWidth="4"
-      {...props}
-    />
   );
 };
 

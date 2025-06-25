@@ -45,11 +45,10 @@ const relDateKeyLabels: Record<DateRange, string> = {
 };
 
 export default function MenuBar() {
-  const { params, setParams, isFetching } = useDashboard();
-  const [value, setValue] = useState("");
-  const [filters, setFilters] = useState<Filter[]>([]);
-
-  const isFetchingFromMenuBar = Object.values(isFetching).some((v) => !!v);
+  const { params, setParams, emails } = useDashboard();
+  const [value, setValue] = useState(params.searchTerm || "");
+  const [filters, setFilters] = useState<Filter[]>(params.filters || []);
+  const isFetching = emails.isLoading;
 
   const convertInputToFilter = (
     input: string,
@@ -114,7 +113,7 @@ export default function MenuBar() {
           )}
         >
           <div className="relative flex-1 flex items-center px-3 gap-1.5">
-            {isFetchingFromMenuBar ? (
+            {isFetching ? (
               <Spinner size="small" className="h-4 w-4 text-muted-foreground" />
             ) : (
               <Search size={16} className="h-4 w-4 text-muted-foreground" />

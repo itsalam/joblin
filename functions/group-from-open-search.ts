@@ -111,6 +111,7 @@ export const updateGroup = async (email: CategorizedEmail) => {
     last_updated: newestEmail.sent_on,
     last_email_subject: newestEmail.subject,
     last_status: newestEmail.application_status,
+    created_at: newestEmail.sent_on,
   } as GroupRecord);
 
   const insertRecord = await dynamo.send(

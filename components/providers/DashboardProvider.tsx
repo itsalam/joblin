@@ -1,11 +1,10 @@
 "use client";
 
-import { composeApplications } from "@/app/(actions)/composeApplications";
-import { composeEmails } from "@/app/(actions)/compostEmails";
-import { useParams } from "@/lib/hooks";
+import { useApplications, useEmails } from "@/lib/hooks";
 import {
   ApplicationStatus,
   DashboardParams,
+  Filter,
   FilterType,
   GroupRecord,
 } from "@/types";
@@ -15,28 +14,26 @@ import React, {
   ReactNode,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from "react";
+import { SWRResponse } from "swr";
 import { createSafeId } from "../helpers";
 
 export type FetchedRecords = keyof Omit<FetchData, "maxApplications">;
 
 interface DashboardContextValue {
-  isFetching: Record<FetchedRecords, boolean>;
-  applications: GroupRecord[];
-  setApplications: React.Dispatch<React.SetStateAction<GroupRecord[]>>;
-  latestData: React.RefObject<FetchData>;
+  applications: SWRResponse<GroupRecord[]> & {
+    currPage: number;
+    maxApplications: number;
+    presorted: boolean;
+  };
   params: DashboardParams;
   setParams: React.Dispatch<React.SetStateAction<DashboardParams>>;
-  emails: CategorizedEmail[];
-  setEmails: React.Dispatch<React.SetStateAction<CategorizedEmail[]>>;
+  emails: SWRResponse<Partial<Pick<FetchData, "emails" | "chartData">>>;
   chartData: ApplicationData;
-  setChartData: React.Dispatch<React.SetStateAction<ApplicationData>>;
-  focusToEmail: (emailId: string) => void;
-  activeEmail: CategorizedEmail | null;
-  setActiveEmail: React.Dispatch<React.SetStateAction<CategorizedEmail | null>>;
-  maxApplications: React.RefObject<number>;
+  focusToEmail: (emailId: string, filters?: Filter[]) => void;
+  activeEmailIdx: number | null;
+  setActiveEmailIdx: React.Dispatch<React.SetStateAction<number | null>>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | undefined>(
@@ -49,53 +46,26 @@ export type FetchData = {
   chartData: ApplicationData;
   emails: CategorizedEmail[];
   applications?: GroupRecord[];
-  maxApplications?: number;
 };
 
 export const DashboardProvider: React.FC<{
   children: ReactNode;
-  fetchData: FetchData;
   initalDashboardParams: DashboardParams;
-}> = ({ fetchData, children, initalDashboardParams }) => {
-  const [emails, setEmails] = useState<CategorizedEmail[]>(fetchData.emails);
-  const [applications, setApplications] = useState<GroupRecord[]>(
-    fetchData.applications || []
-  );
-  const [chartData, setChartData] = useState<ApplicationData>(
-    fetchData.chartData
-  );
-  const [isFetching, setIsFetching] = useState({
-    emails: false,
-    applications: false,
-    chartData: false,
-  });
-  const maxApplications = useRef<number>(fetchData.maxApplications || 1);
-  const [activeEmail, setActiveEmail] = useState<CategorizedEmail | null>(null);
+}> = ({ children, initalDashboardParams }) => {
   const [params, setParams] = useState<DashboardParams>(initalDashboardParams);
-  const [chartParams, setChartParams] = useParams<DashboardParams>(params, [
-    "searchTerm",
-    "filters",
-    "absolute",
-    "dateKey",
-    "displayedStatistics",
-  ]);
-  const [emailParams, setEmailParams] = useParams<DashboardParams>(params, [
-    "searchTerm",
-    "filters",
-    "absolute",
-    "dateKey",
-  ]);
-  const [applicationParams, setApplicationParams] = useParams<DashboardParams>(
-    params,
-    ["searchTerm", "filters", "absolute", "dateKey", "applicationPageIndex"]
+  const emails = useEmails({ params });
+  const applications = useApplications({ emails: emails.data?.emails, params });
+  const [chartData, setChartData] = useState<ApplicationData>(
+    emails.data?.chartData || []
   );
 
-  const latestData = useRef<FetchData>({ chartData, emails });
+  const [activeEmailIdx, setActiveEmailIdx] = useState<number | null>(null);
 
   const focusToEmail = (emailId: string) => {
-    const email = emails.find((email) => email.id === emailId);
-    if (email) {
-      setActiveEmail(email);
+    const emailArr = emails.data?.emails || [];
+    const idx = emailArr.findIndex((email) => email.id === emailId);
+    if (idx) {
+      setActiveEmailIdx(idx);
       const emailCardElement = document.getElementById("email-card");
       if (emailCardElement) {
         emailCardElement.scrollIntoView({
@@ -103,7 +73,7 @@ export const DashboardProvider: React.FC<{
           block: "center",
           inline: "nearest",
         });
-        const id = createSafeId(email.id);
+        const id = createSafeId(emailArr[idx].id);
         const emailElement = emailCardElement.querySelector(`#${id}`);
         if (emailElement) {
           const parent = emailElement.closest("[role=group");
@@ -145,6 +115,8 @@ export const DashboardProvider: React.FC<{
         displayedStatistics: params.displayedStatistics,
         dateKey: params.dateKey,
         absolute: params.absolute,
+        applicationSortKey: params.applicationSortKey,
+        emailSortKey: params.emailSortKey,
       }),
       {
         path: "/",
@@ -156,41 +128,17 @@ export const DashboardProvider: React.FC<{
     );
   }, [params]);
 
-  useEffect(() => {
-    setIsFetching((prev) => ({ ...prev, chartData: true, emails: true }));
-    composeEmails(chartParams).then((data) => {
-      setIsFetching((prev) => ({ ...prev, chartData: false, emails: false }));
-      setChartData(data.chartData);
-      setEmails(data.emails);
-    });
-  }, [chartParams, emailParams]);
-
-  useEffect(() => {
-    setIsFetching((prev) => ({ ...prev, applications: true }));
-    composeApplications(applicationParams).then((data) => {
-      setIsFetching((prev) => ({ ...prev, applications: false }));
-      setApplications(data.records || []);
-      maxApplications.current = data.maxApplications || 1;
-    });
-  }, [applicationParams]);
-
   return (
     <DashboardContext.Provider
       value={{
-        isFetching,
         params,
         setParams,
         emails,
-        setEmails,
         chartData,
-        setChartData,
-        latestData,
         applications,
-        setApplications,
         focusToEmail,
-        activeEmail,
-        setActiveEmail,
-        maxApplications,
+        activeEmailIdx,
+        setActiveEmailIdx,
       }}
     >
       {children}
